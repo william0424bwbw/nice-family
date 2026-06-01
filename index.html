@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族作業登記版 5.8 垂直搜尋版</title>
+    <title>NICE家族作業登記版 6.0 雙模式終極版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -22,7 +22,7 @@
             color: var(--text-main);
             margin: 0;
             padding: 15px;
-            font-size: 0.95rem; /* 整體字體微調小一點點 */
+            font-size: 0.95rem;
         }
 
         .title-area {
@@ -45,6 +45,32 @@
             font-size: 0.9rem;
         }
 
+        /* 模式切換頁籤 */
+        .mode-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: 0.3s;
+            background-color: #3b3b4f;
+            color: #b3b3cc;
+        }
+
+        .tab-btn.active {
+            background-color: #4cc9f0;
+            color: #1e1e24;
+            box-shadow: 0 0 15px rgba(76, 201, 240, 0.5);
+        }
+
         /* 頂部工具列 */
         .top-tools {
             position: absolute;
@@ -56,154 +82,82 @@
         }
 
         .btn-clear-all {
-            background-color: #e63946;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-            font-size: 0.9rem;
-            display: none; /* 老師端才開啟 */
+            background-color: #e63946; color: white; border: none; padding: 8px 12px;
+            border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;
+            font-size: 0.9rem; display: none; 
         }
         .btn-clear-all:hover { background-color: #b31f2a; }
 
-        /* 家長專屬搜尋區 */
         .parent-search-box {
-            background: #3b3b4f;
-            padding: 8px 12px;
-            border-radius: 8px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            border: 1px solid #4cc9f0;
+            background: #3b3b4f; padding: 8px 12px; border-radius: 8px; display: flex; gap: 8px; align-items: center; border: 1px solid #4cc9f0;
         }
+        .search-input { width: 90px; padding: 6px; font-size: 0.9rem; border-radius: 5px; border: none; text-align: center; font-weight: bold; }
+        .btn-search { background-color: #4cc9f0; color: #1e1e24; border: none; padding: 6px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
 
-        .search-input {
-            width: 90px;
-            padding: 6px;
-            font-size: 0.9rem;
-            border-radius: 5px;
-            border: none;
-            text-align: center;
-            font-weight: bold;
-        }
-
-        .btn-search {
-            background-color: #4cc9f0;
-            color: #1e1e24;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        .btn-search:hover { background-color: #4361ee; color: white; }
-
-        /* 控制台 */
+        /* 日常作業控制台 */
         .control-panel {
-            background: #252530;
-            padding: 15px;
-            border-radius: 12px;
-            max-width: 800px;
-            margin: 0 auto 25px auto;
-            display: none; 
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #3e3e50;
+            background: #252530; padding: 15px; border-radius: 12px; max-width: 800px;
+            margin: 0 auto 25px auto; display: none; flex-wrap: wrap; gap: 12px;
+            align-items: center; justify-content: center; border: 1px solid #3e3e50;
         }
-
-        .select-style, .input-style, .btn-add {
-            padding: 10px 16px;
-            font-size: 1rem;
-            border-radius: 8px;
-            border: none;
-            outline: none;
-            font-weight: bold;
-        }
-
+        .select-style, .input-style, .btn-add { padding: 10px 16px; font-size: 1rem; border-radius: 8px; border: none; outline: none; font-weight: bold; }
         .select-style { background-color: #3b3b4f; color: white; cursor: pointer; }
         .input-style { background-color: #fff; color: #333; display: none; width: 160px; }
         .btn-add { background-color: #4cc9f0; color: #1e1e24; cursor: pointer; transition: all 0.2s; }
-        .btn-add:hover { background-color: #4361ee; color: white; transform: scale(1.03); }
 
-        .loading-hint {
-            text-align: center;
-            font-size: 1.3rem;
-            color: #fccc52;
-            margin: 20px;
-        }
+        .loading-hint { text-align: center; font-size: 1.3rem; color: #fccc52; margin: 20px; }
 
-        /* 🔄 改為網頁上下垂直滑動的卡片畫布 */
+        /* 模式 A：垂直日常畫布 */
         .board-canvas {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* 自動依寬度換行 */
-            gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding-bottom: 40px;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px; max-width: 1200px; margin: 0 auto; padding-bottom: 40px;
         }
 
-        /* 黑板卡片 */
         .homework-card {
-            background: var(--card-bg);
-            border-radius: 14px;
-            padding: 15px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-            border: 2px solid #3e3e50;
-            position: relative;
-            transition: all 0.4s ease;
+            background: var(--card-bg); border-radius: 14px; padding: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3); border: 2px solid #3e3e50; position: relative; transition: all 0.4s ease;
         }
-
-        .homework-card.fade-out {
-            transform: scale(0.8) translateY(-40px);
-            opacity: 0;
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            border-bottom: 2px dashed #4e4e62;
-            padding-bottom: 8px;
-        }
-
+        .homework-card.fade-out { transform: scale(0.8) translateY(-40px); opacity: 0; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px dashed #4e4e62; padding-bottom: 8px; }
         .card-title { font-size: 1.15rem; font-weight: bold; color: #fccc52; }
-        
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-lock {
-            background-color: #4361ee; color: white; border: none; padding: 4px 8px;
-            border-radius: 5px; font-size: 0.75rem; font-weight: bold; cursor: pointer; display: none; 
-        }
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .btn-lock { background-color: #4361ee; color: white; border: none; padding: 4px 8px; border-radius: 5px; font-size: 0.75rem; font-weight: bold; cursor: pointer; display: none; }
         .btn-lock.locked { background-color: #2a9d8f; }
         .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; display: none; }
 
-        /* 學生矩陣 */
         .student-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         .student-node {
             aspect-ratio: 1.2; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; color: white;
             background-color: var(--level-0); cursor: default; transition: all 0.15s ease; box-shadow: 0 3px 0 rgba(0,0,0,0.2);
         }
         .teacher-mode .student-node { cursor: pointer; } 
-
-        /* 鎖定模式下，隱藏正常(綠色狀態0)的號碼 */
-        .homework-card.hide-green .student-node[data-status="0"] {
-            display: none;
-        }
+        .homework-card.hide-green .student-node[data-status="0"] { display: none; }
 
         .student-node.status-1 { background-color: var(--level-1); color: #1e1e24; }
         .student-node.status-2 { background-color: var(--level-2); font-size: 1.2rem; box-shadow: 0 0 8px rgba(230, 57, 70, 0.5); }
         .student-node.status-3 { background-color: var(--level-3); font-size: 1.25rem; animation: danger-blink 1s infinite alternate; }
+
+        /* 模式 B：學期考試大表格樣式 */
+        .exam-table-container {
+            max-width: 1250px; margin: 0 auto; overflow-x: auto; background: var(--card-bg);
+            padding: 15px; border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); display: none;
+        }
+
+        table { width: 100%; border-collapse: collapse; text-align: center; }
+        th, td { padding: 10px; border: 1px solid #4e4e62; font-weight: bold; }
+        th { background-color: #3b3b4f; color: #4cc9f0; font-size: 1rem; }
+        td.seat-col { background-color: #3b3b4f; color: white; font-size: 1.05rem; }
+
+        /* 表格內狀態格球形設計 */
+        .table-cell-btn {
+            width: 35px; height: 35px; border-radius: 50%; border: none; font-size: 0.9rem;
+            font-weight: bold; color: white; background-color: var(--level-0); cursor: default; transition: 0.15s;
+        }
+        .teacher-mode .table-cell-btn { cursor: pointer; }
+        .table-cell-btn.status-1 { background-color: var(--level-1); color: #1e1e24; }
+        .table-cell-btn.status-2 { background-color: var(--level-2); box-shadow: 0 0 5px var(--level-2); }
+        .table-cell-btn.status-3 { background-color: var(--level-3); animation: danger-blink 1s infinite alternate; }
 
         @keyframes danger-blink {
             0% { opacity: 0.7; transform: scale(0.95); }
@@ -214,11 +168,10 @@
 <body>
 
     <div class="title-area">
-        <h1>📋 NICE家族作業登記版 5.8</h1>
+        <h1>📋 NICE家族作業登記版 6.0</h1>
         <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
         
         <div class="top-tools">
-            <!-- 家長查閱小工具 -->
             <div class="parent-search-box">
                 <input type="number" class="search-input" id="searchNo" placeholder="輸入座號" min="1" max="24">
                 <button class="btn-search" onclick="searchStudentMissing()">🔍 查找欠交</button>
@@ -227,6 +180,13 @@
         </div>
     </div>
 
+    <!-- 雙模式切換按鈕 -->
+    <div class="mode-tabs">
+        <button class="tab-btn active" id="tabDaily" onclick="switchMode('daily')">📁 日常作業消消樂</button>
+        <button class="tab-btn" id="tabExam" onclick="switchMode('exam')">📊 學期考試大標靶</button>
+    </div>
+
+    <!-- 日常作業控制台 -->
     <div class="control-panel" id="controlPanel">
         <select class="select-style" id="taskSelect" onchange="toggleCustomInput()">
             <option value="">-- 請選擇欲掛上的作業 --</option>
@@ -249,7 +209,24 @@
     </div>
 
     <div class="loading-hint" id="loadingHint">⏳ 雲端資料同步中，請稍候...</div>
+    
+    <!-- 模式 A：卡片看板 -->
     <div class="board-canvas" id="boardCanvas"></div>
+
+    <!-- 模式 B：大表格看板 -->
+    <div class="exam-table-container" id="examTableContainer">
+        <table>
+            <thead>
+                <tr id="tableHeaderRow">
+                    <th style="width: 70px;">座號</th>
+                    <!-- 考試項目欄位會動態產生 -->
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- 1-24號學生列會動態產生 -->
+            </tbody>
+        </table>
+    </div>
 
     <script>
         // 大熊老師的專屬雲端 API 鑰匙
@@ -257,13 +234,18 @@
 
         const totalStudents = 24;
         let activeCardsData = []; 
+        let examRecordsData = [];
         let isTeacher = false;
+        let currentMode = 'daily';
+
+        // 預設固定考試科目項目
+        const examList = ["ch1", "ch2", "ch3", "ch4", "ch5", "總複習1", "總複習2", "聽寫", "1+2", "3+4", "5+6"];
 
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('mode') === 'teacher') {
                 isTeacher = true;
-                document.getElementById('controlPanel').style.display = 'flex';
+                if(currentMode === 'daily') document.getElementById('controlPanel').style.display = 'flex';
                 document.getElementById('clearAllBtn').style.display = 'block';
                 document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（修改將即時同步雲端）';
                 document.body.classList.add('teacher-mode');
@@ -274,36 +256,22 @@
             fetchCloudData();
         };
 
-        // 🧠 新增核心功能：家長一鍵查找孩子所有欠交作業
-        function searchStudentMissing() {
-            const inputEl = document.getElementById('searchNo');
-            const seatNo = parseInt(inputEl.value);
-
-            if (isNaN(seatNo) || seatNo < 1 || seatNo > totalStudents) {
-                alert("請輸入正確的學生座號（1 ~ 24）喔！");
-                return;
-            }
-
-            let missingTasks = [];
-
-            // 巡迴目前黑板上所有的作業卡片
-            activeCardsData.forEach(card => {
-                const status = card.statusArray[seatNo];
-                if (status > 0) {
-                    let levelText = "";
-                    if (status === 1) levelText = "(欠1次)";
-                    if (status === 2) levelText = "(累積遲交!)";
-                    if (status === 3) levelText = "(⚠️終極大釘子戶!!)";
-                    
-                    missingTasks.push(`📌 ${card.fullTitle} ${levelText}`);
-                }
-            });
-
-            // 彈出視窗通知，不跳轉網頁
-            if (missingTasks.length === 0) {
-                alert(`🎉 恭喜！【 ${seatNo} 號】目前所有作業皆已訂正完成！太棒了！`);
+        // 雙模式頁籤切換
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('tabDaily').classList.remove('active');
+            document.getElementById('tabExam').classList.remove('active');
+            
+            if (mode === 'daily') {
+                document.getElementById('tabDaily').classList.add('active');
+                document.getElementById('boardCanvas').style.display = 'grid';
+                document.getElementById('examTableContainer').style.display = 'none';
+                if (isTeacher) document.getElementById('controlPanel').style.display = 'flex';
             } else {
-                alert(`📋 【 ${seatNo} 號】目前尚未完成的訂正項目如下：\n\n${missingTasks.join('\n')}\n\n請協助督促孩子盡快完成訂正喔！`);
+                document.getElementById('tabExam').classList.add('active');
+                document.getElementById('boardCanvas').style.display = 'none';
+                document.getElementById('examTableContainer').style.display = 'block';
+                document.getElementById('controlPanel').style.display = 'none';
             }
         }
 
@@ -312,8 +280,18 @@
             .then(res => res.json())
             .then(data => {
                 document.getElementById('loadingHint').style.display = 'none';
-                activeCardsData = data;
+                activeCardsData = data.daily || [];
+                examRecordsData = data.exam || [];
+                
+                // 確保預設科目在雲端資料庫中都有初始化陣列
+                examList.forEach(exam => {
+                    if (!examRecordsData.some(e => e.examName === exam)) {
+                        examRecordsData.push({ examName: exam, statusArray: Array(totalStudents + 1).fill(0) });
+                    }
+                });
+
                 renderBoard();
+                renderExamTable();
             }).catch(err => {
                 document.getElementById('loadingHint').textContent = "❌ 雲端連線失敗，請確認雲端 Apps Script 部署狀態。";
             });
@@ -323,89 +301,16 @@
             fetch(cloudUrl, {
                 method: "POST",
                 body: JSON.stringify(payload)
-            }).then(res => res.json())
-              .then(res => console.log("雲端同步成功:", res));
+            }).then(res => res.json());
         }
 
+        // --- 模式 A：日常作業渲染 ---
         function renderBoard() {
             const canvas = document.getElementById('boardCanvas');
             canvas.innerHTML = ""; 
-            
             activeCardsData.forEach(cardData => {
                 renderCard(cardData.fullTitle, cardData.statusArray, cardData.isLocked);
             });
-        }
-
-        function toggleCustomInput() {
-            const select = document.getElementById('taskSelect');
-            const customInput = document.getElementById('customInput');
-            if (select.value === "CUSTOM") {
-                customInput.style.display = "inline-block";
-                customInput.focus();
-            } else {
-                customInput.style.display = "none";
-                customInput.value = "";
-            }
-        }
-
-        function getTodayDateString() {
-            const today = new Date();
-            return `${today.getMonth() + 1}/${today.getDate()}`;
-        }
-
-        function createNewCard() {
-            if (!isTeacher) return;
-            const select = document.getElementById('taskSelect');
-            const customInput = document.getElementById('customInput');
-            let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value;
-
-            if (!pureTaskName) {
-                alert("大熊老師，請先選擇或輸入作業名稱喔！");
-                return;
-            }
-
-            const dateStr = getTodayDateString();
-            const fullTitle = `${pureTaskName} ${dateStr}`;
-
-            if (activeCardsData.some(c => c.fullTitle === fullTitle)) {
-                alert(`🚨 防呆提醒：大熊老師，黑板上今天已經有「${fullTitle}」囉！`);
-                return;
-            }
-
-            let inheritedStatus = Array(totalStudents + 1).fill(0); 
-            let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
-            
-            if (oldCard) {
-                const countUnfinished = oldCard.statusArray.filter(s => s > 0).length;
-                if (countUnfinished > 0) {
-                    const confirmInherit = confirm(`🔍 偵測到先前的「${oldCard.fullTitle}」，還有 ${countUnfinished} 人未完成。\n\n是否直接承接狀態到今天的 ${fullTitle} 中？`);
-                    if (confirmInherit) {
-                        inheritedStatus = [...oldCard.statusArray]; 
-                    }
-                }
-            }
-
-            const newCardData = {
-                fullTitle: fullTitle,
-                pureName: pureTaskName,
-                statusArray: inheritedStatus,
-                isLocked: false 
-            };
-            
-            activeCardsData.push(newCardData);
-            renderBoard();
-
-            pushToCloud({
-                action: "saveOrUpdate",
-                fullTitle: fullTitle,
-                pureName: pureTaskName,
-                statusArray: inheritedStatus,
-                isLocked: false
-            });
-
-            select.value = "";
-            customInput.value = "";
-            customInput.style.display = "none";
         }
 
         function renderCard(fullTitle, statusArray, isCardLocked) {
@@ -414,9 +319,7 @@
             card.className = 'homework-card';
             card.id = `card_${fullTitle}`;
 
-            if (isCardLocked || !isTeacher) {
-                card.classList.add('hide-green');
-            }
+            if (isCardLocked || !isTeacher) card.classList.add('hide-green');
 
             const header = document.createElement('div');
             header.className = 'card-header';
@@ -430,13 +333,8 @@
 
             const lockBtn = document.createElement('button');
             lockBtn.className = 'btn-lock';
-            if (isCardLocked) {
-                lockBtn.textContent = '🔓 解鎖';
-                lockBtn.classList.add('locked');
-            } else {
-                lockBtn.textContent = '🔒 鎖定';
-            }
-            
+            lockBtn.textContent = isCardLocked ? '🔓 解鎖' : '🔒 鎖定';
+            if (isCardLocked) lockBtn.classList.add('locked');
             if (isTeacher) lockBtn.style.display = 'block';
             
             lockBtn.onclick = () => {
@@ -444,10 +342,8 @@
                 if (cardIndex !== -1) {
                     const nextLockState = !activeCardsData[cardIndex].isLocked;
                     activeCardsData[cardIndex].isLocked = nextLockState;
-                    
                     pushToCloud({
-                        action: "saveOrUpdate",
-                        fullTitle: fullTitle,
+                        action: "saveOrUpdate", fullTitle: fullTitle,
                         pureName: activeCardsData[cardIndex].pureName,
                         statusArray: activeCardsData[cardIndex].statusArray,
                         isLocked: nextLockState
@@ -464,7 +360,6 @@
 
             actionsWrapper.appendChild(lockBtn);
             actionsWrapper.appendChild(delBtn);
-
             header.appendChild(title);
             header.appendChild(actionsWrapper);
             card.appendChild(header);
@@ -479,15 +374,11 @@
                 
                 const currentStatus = statusArray[s];
                 btn.dataset.status = currentStatus;
-                if (currentStatus > 0) {
-                    btn.classList.add(`status-${currentStatus}`);
-                }
+                if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
 
                 if (isTeacher) {
                     btn.onclick = () => {
-                        if (card.classList.contains('hide-green') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) {
-                            return;
-                        }
+                        if (card.classList.contains('hide-green') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
 
                         let status = parseInt(btn.dataset.status);
                         status = (status + 1) % 4;
@@ -496,42 +387,145 @@
                         const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
                         if (cardIndex !== -1) {
                             activeCardsData[cardIndex].statusArray[s] = status;
-                            
                             pushToCloud({
-                                action: "saveOrUpdate",
-                                fullTitle: fullTitle,
+                                action: "saveOrUpdate", fullTitle: fullTitle,
                                 pureName: activeCardsData[cardIndex].pureName,
                                 statusArray: activeCardsData[cardIndex].statusArray,
                                 isLocked: activeCardsData[cardIndex].isLocked
                             });
-                            
                             checkCardCompletion(cardIndex);
                         }
-
                         btn.classList.remove('status-1', 'status-2', 'status-3');
-                        if (status > 0) {
-                            btn.classList.add(`status-${status}`);
-                        }
+                        if (status > 0) btn.classList.add(`status-${status}`);
                     };
                 }
-
                 matrix.appendChild(btn);
             }
-
             card.appendChild(matrix);
             canvas.appendChild(card);
+        }
+
+        // --- 模式 B：學期考試表格渲染 ---
+        function renderExamTable() {
+            const headerRow = document.getElementById('tableHeaderRow');
+            const tbody = document.getElementById('tableBody');
+            
+            // 建立表頭
+            headerRow.innerHTML = '<th style="width: 70px;">座號</th>';
+            examList.forEach(exam => {
+                const th = document.createElement('th');
+                th.textContent = exam;
+                headerRow.appendChild(th);
+            });
+
+            // 建立 1-24 號列
+            tbody.innerHTML = "";
+            for (let s = 1; s <= totalStudents; s++) {
+                const tr = document.createElement('tr');
+                
+                const tdSeat = document.createElement('td');
+                tdSeat.className = 'seat-col';
+                tdSeat.textContent = String(s).padStart(2, '0');
+                tr.appendChild(tdSeat);
+
+                examList.forEach(exam => {
+                    const tdCell = document.createElement('td');
+                    const cellBtn = document.createElement('button');
+                    cellBtn.className = 'table-cell-btn';
+                    cellBtn.textContent = s;
+
+                    const examData = examRecordsData.find(e => e.examName === exam);
+                    const currentStatus = examData ? examData.statusArray[s] : 0;
+                    
+                    cellBtn.dataset.status = currentStatus;
+                    if (currentStatus > 0) cellBtn.classList.add(`status-${currentStatus}`);
+
+                    if (isTeacher) {
+                        cellBtn.onclick = () => {
+                            let status = parseInt(cellBtn.dataset.status);
+                            status = (status + 1) % 4;
+                            cellBtn.dataset.status = status;
+
+                            const eIdx = examRecordsData.findIndex(e => e.examName === exam);
+                            if (eIdx !== -1) {
+                                examRecordsData[eIdx].statusArray[s] = status;
+                                pushToCloud({
+                                    action: "saveExam",
+                                    examName: exam,
+                                    statusArray: examRecordsData[eIdx].statusArray
+                                });
+                            }
+
+                            cellBtn.classList.remove('status-1', 'status-2', 'status-3');
+                            if (status > 0) cellBtn.classList.add(`status-${status}`);
+                        };
+                    }
+
+                    tdCell.appendChild(cellBtn);
+                    tr.appendChild(tdCell);
+                });
+
+                tbody.appendChild(tr);
+            }
+        }
+
+        // --- 頂部家長搜尋整合功能 ---
+        function searchStudentMissing() {
+            const inputEl = document.getElementById('searchNo');
+            const seatNo = parseInt(inputEl.value);
+
+            if (isNaN(seatNo) || seatNo < 1 || seatNo > totalStudents) {
+                alert("請輸入正確的學生座號（1 ~ 24）喔！");
+                return;
+            }
+
+            let dailyMissing = [];
+            let examMissing = [];
+
+            // 搜日常作業
+            activeCardsData.forEach(card => {
+                if (card.statusArray[seatNo] > 0) {
+                    dailyMissing.push(`📌 ${card.fullTitle}`);
+                }
+            });
+
+            // 搜學期考試
+            examRecordsData.forEach(exam => {
+                if (exam.statusArray[seatNo] > 0) {
+                    let levelText = "";
+                    if (exam.statusArray[seatNo] === 1) levelText = "(未補考/未訂正)";
+                    if (exam.statusArray[seatNo] === 2) levelText = "(累積延遲!)";
+                    if (exam.statusArray[seatNo] === 3) levelText = "(⚠️大釘子戶!!)";
+                    examMissing.push(`📝 ${exam.examName} ${levelText}`);
+                }
+            });
+
+            if (dailyMissing.length === 0 && examMissing.length === 0) {
+                alert(`🎉 恭喜！【 ${seatNo} 號】目前所有日常作業與學期考試均已全部過關！`);
+            } else {
+                let report = `📋 【 ${seatNo} 號】未完成訂正報告：\n`;
+                if (dailyMissing.length > 0) report += `\n【📁 日常作業類】\n${dailyMissing.join('\n')}\n`;
+                if (examMissing.length > 0) report += `\n【📊 學期考試類】\n${examMissing.join('\n')}\n`;
+                alert(report);
+            }
+        }
+
+        function toggleCustomInput() {
+            const select = document.getElementById('taskSelect');
+            const customInput = document.getElementById('customInput');
+            if (select.value === "CUSTOM") {
+                customInput.style.display = "inline-block";
+                customInput.focus();
+            } else { customInput.style.display = "none"; customInput.value = ""; }
         }
 
         function checkCardCompletion(cardIndex) {
             const cardData = activeCardsData[cardIndex];
             if (!cardData) return;
-
             const isAllGreen = cardData.statusArray.slice(1, totalStudents + 1).every(status => status === 0);
-
             if (isAllGreen) {
                 const targetTitle = cardData.fullTitle;
                 const cardElement = document.getElementById(`card_${targetTitle}`);
-                
                 if (cardElement) {
                     cardElement.classList.add('fade-out');
                     setTimeout(() => {
@@ -543,19 +537,47 @@
             }
         }
 
-        function removeCard(fullTitle, askConfirm = true) {
-            if(!askConfirm || confirm(`確定要取下「${fullTitle}」這塊登記板嗎？`)) {
+        function createNewCard() {
+            if (!isTeacher) return;
+            const select = document.getElementById('taskSelect');
+            const customInput = document.getElementById('customInput');
+            let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value;
+
+            if (!pureTaskName) { alert("大熊老師，請先選擇或輸入作業名稱喔！"); return; }
+            const fullTitle = `${pureTaskName} ${getTodayDateString()}`;
+
+            if (activeCardsData.some(c => c.fullTitle === fullTitle)) { alert(`🚨 防呆：今天已有「${fullTitle}」囉！`); return; }
+
+            let inheritedStatus = Array(totalStudents + 1).fill(0); 
+            let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
+            if (oldCard && oldCard.statusArray.filter(s => s > 0).length > 0) {
+                if (confirm(`🔍 承接提示：是否直接承接「${oldCard.fullTitle}」的未交名單到今天？`)) {
+                    inheritedStatus = [...oldCard.statusArray];
+                }
+            }
+
+            activeCardsData.push({ fullTitle: fullTitle, pureName: pureTaskName, statusArray: inheritedStatus, isLocked: false });
+            renderBoard();
+            pushToCloud({ action: "saveOrUpdate", fullTitle: fullTitle, pureName: pureTaskName, statusArray: inheritedStatus, isLocked: false });
+
+            select.value = ""; customInput.value = ""; customInput.style.display = "none";
+        }
+
+        function removeCard(fullTitle) {
+            if(confirm(`確定要取下「${fullTitle}」嗎？`)) {
                 const card = document.getElementById(`card_${fullTitle}`);
                 if (card) card.remove();
                 activeCardsData = activeCardsData.filter(item => item.fullTitle !== fullTitle);
-                pushToCloud({ action: "delete", fullTitle: fullTitle }); 
+                pushToCloud({ action: "delete", fullTitle: fullTitle });
             }
         }
 
         function clearAllCards() {
-            if(confirm("⚠ 大熊老師，確定要把目前雲端黑板上所有的作業卡片全部清空重置嗎？")) {
+            if(confirm("⚠ 確定要清空目前雲端黑板上「所有日常作業」與「學期考試」的紀錄嗎？")) {
                 document.getElementById('boardCanvas').innerHTML = "";
                 activeCardsData = [];
+                examRecordsData = [];
+                renderExamTable();
                 pushToCloud({ action: "clearAll" }); 
             }
         }
