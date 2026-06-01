@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族作業登記版 5.5 雲端鎖定版</title>
+    <title>NICE家族作業登記版 5.8 垂直搜尋版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -27,13 +27,13 @@
 
         .title-area {
             position: relative;
-            max-width: 1300px;
+            max-width: 1200px;
             margin: 0 auto;
             text-align: center;
         }
 
         h1 {
-            font-size: 2rem; /* 字體微縮 */
+            font-size: 2rem; 
             color: #4cc9f0;
             margin-bottom: 5px;
             text-shadow: 0 0 10px rgba(76, 201, 240, 0.3);
@@ -45,15 +45,19 @@
             font-size: 0.9rem;
         }
 
+        /* 頂部工具列 */
         .top-tools {
             position: absolute;
             right: 10px;
-            top: 10px;
+            top: 15px;
             display: flex;
             gap: 10px;
+            align-items: center;
         }
 
-        .btn-scroll, .btn-clear-all {
+        .btn-clear-all {
+            background-color: #e63946;
+            color: white;
             border: none;
             padding: 8px 12px;
             border-radius: 8px;
@@ -61,21 +65,42 @@
             cursor: pointer;
             transition: 0.2s;
             font-size: 0.9rem;
-        }
-
-        .btn-scroll {
-            background-color: #3b3b4f;
-            color: white;
-            display: none; /* 老師端才顯示 */
-        }
-        .btn-scroll:hover { background-color: #4cc9f0; color: #1e1e24; }
-
-        .btn-clear-all {
-            background-color: #e63946;
-            color: white;
-            display: none; 
+            display: none; /* 老師端才開啟 */
         }
         .btn-clear-all:hover { background-color: #b31f2a; }
+
+        /* 家長專屬搜尋區 */
+        .parent-search-box {
+            background: #3b3b4f;
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            border: 1px solid #4cc9f0;
+        }
+
+        .search-input {
+            width: 90px;
+            padding: 6px;
+            font-size: 0.9rem;
+            border-radius: 5px;
+            border: none;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .btn-search {
+            background-color: #4cc9f0;
+            color: #1e1e24;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .btn-search:hover { background-color: #4361ee; color: white; }
 
         /* 控制台 */
         .control-panel {
@@ -113,15 +138,14 @@
             margin: 20px;
         }
 
-        /* 可捲動的卡片畫布 */
+        /* 🔄 改為網頁上下垂直滑動的卡片畫布 */
         .board-canvas {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* 自動依寬度換行 */
             gap: 20px;
-            overflow-x: auto;
-            padding-bottom: 20px;
-            align-items: flex-start;
-            min-height: 400px;
-            scroll-behavior: smooth; /* 平滑滾動 */
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-bottom: 40px;
         }
 
         /* 黑板卡片 */
@@ -129,12 +153,9 @@
             background: var(--card-bg);
             border-radius: 14px;
             padding: 15px;
-            min-width: 250px;
-            max-width: 250px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.3);
             border: 2px solid #3e3e50;
             position: relative;
-            flex-shrink: 0;
             transition: all 0.4s ease;
         }
 
@@ -161,20 +182,10 @@
         }
 
         .btn-lock {
-            background-color: #4361ee;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 5px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            cursor: pointer;
-            display: none; /* 老師端才開啟 */
+            background-color: #4361ee; color: white; border: none; padding: 4px 8px;
+            border-radius: 5px; font-size: 0.75rem; font-weight: bold; cursor: pointer; display: none; 
         }
-        .btn-lock.locked {
-            background-color: #2a9d8f;
-        }
-
+        .btn-lock.locked { background-color: #2a9d8f; }
         .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; display: none; }
 
         /* 學生矩陣 */
@@ -203,12 +214,15 @@
 <body>
 
     <div class="title-area">
-        <h1>📋 NICE家族作業登記版 5.5</h1>
+        <h1>📋 NICE家族作業登記版 5.8</h1>
         <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
         
         <div class="top-tools">
-            <button class="btn-scroll" id="scrollLeftBtn" onclick="scrollCanvas(-300)">⬅ 往左滾動</button>
-            <button class="btn-scroll" id="scrollRightBtn" onclick="scrollCanvas(300)">➡ 往右滾動</button>
+            <!-- 家長查閱小工具 -->
+            <div class="parent-search-box">
+                <input type="number" class="search-input" id="searchNo" placeholder="輸入座號" min="1" max="24">
+                <button class="btn-search" onclick="searchStudentMissing()">🔍 查找欠交</button>
+            </div>
             <button class="btn-clear-all" id="clearAllBtn" onclick="clearAllCards()">🧹 全面板模重置</button>
         </div>
     </div>
@@ -251,21 +265,46 @@
                 isTeacher = true;
                 document.getElementById('controlPanel').style.display = 'flex';
                 document.getElementById('clearAllBtn').style.display = 'block';
-                document.getElementById('scrollLeftBtn').style.display = 'block';
-                document.getElementById('scrollRightBtn').style.display = 'block';
-                document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（點選確認後按「鎖定」可隱藏綠色座號）';
+                document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（修改將即時同步雲端）';
                 document.body.classList.add('teacher-mode');
             } else {
-                document.getElementById('viewModeHint').textContent = '👁️ 家長/學生即時查閱看板（預設僅顯示未完成名單，每 10 秒自動刷新）';
+                document.getElementById('viewModeHint').textContent = '👁️ 家長/學生即時查閱看板（每 10 秒自動刷新）';
                 setInterval(fetchCloudData, 10000); 
             }
             fetchCloudData();
         };
 
-        // 左右滾動功能
-        function scrollCanvas(offset) {
-            const canvas = document.getElementById('boardCanvas');
-            canvas.scrollLeft += offset;
+        // 🧠 新增核心功能：家長一鍵查找孩子所有欠交作業
+        function searchStudentMissing() {
+            const inputEl = document.getElementById('searchNo');
+            const seatNo = parseInt(inputEl.value);
+
+            if (isNaN(seatNo) || seatNo < 1 || seatNo > totalStudents) {
+                alert("請輸入正確的學生座號（1 ~ 24）喔！");
+                return;
+            }
+
+            let missingTasks = [];
+
+            // 巡迴目前黑板上所有的作業卡片
+            activeCardsData.forEach(card => {
+                const status = card.statusArray[seatNo];
+                if (status > 0) {
+                    let levelText = "";
+                    if (status === 1) levelText = "(欠1次)";
+                    if (status === 2) levelText = "(累積遲交!)";
+                    if (status === 3) levelText = "(⚠️終極大釘子戶!!)";
+                    
+                    missingTasks.push(`📌 ${card.fullTitle} ${levelText}`);
+                }
+            });
+
+            // 彈出視窗通知，不跳轉網頁
+            if (missingTasks.length === 0) {
+                alert(`🎉 恭喜！【 ${seatNo} 號】目前所有作業皆已訂正完成！太棒了！`);
+            } else {
+                alert(`📋 【 ${seatNo} 號】目前尚未完成的訂正項目如下：\n\n${missingTasks.join('\n')}\n\n請協助督促孩子盡快完成訂正喔！`);
+            }
         }
 
         function fetchCloudData() {
@@ -350,7 +389,7 @@
                 fullTitle: fullTitle,
                 pureName: pureTaskName,
                 statusArray: inheritedStatus,
-                isLocked: false // 預設剛新增是不鎖定的編輯狀態
+                isLocked: false 
             };
             
             activeCardsData.push(newCardData);
@@ -375,7 +414,6 @@
             card.className = 'homework-card';
             card.id = `card_${fullTitle}`;
 
-            // 如果該卡片已經鎖定，或者當前是家長模式(預設隱藏綠色)，就加上隱藏綠色的 Class
             if (isCardLocked || !isTeacher) {
                 card.classList.add('hide-green');
             }
@@ -390,14 +428,13 @@
             const actionsWrapper = document.createElement('div');
             actionsWrapper.className = 'header-actions';
 
-            // 鎖定/解鎖按鈕 (只有老師管理模式看得到)
             const lockBtn = document.createElement('button');
             lockBtn.className = 'btn-lock';
             if (isCardLocked) {
-                lockBtn.textContent = '🔓 解鎖編輯';
+                lockBtn.textContent = '🔓 解鎖';
                 lockBtn.classList.add('locked');
             } else {
-                lockBtn.textContent = '🔒 鎖定黑板';
+                lockBtn.textContent = '🔒 鎖定';
             }
             
             if (isTeacher) lockBtn.style.display = 'block';
@@ -405,7 +442,6 @@
             lockBtn.onclick = () => {
                 const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
                 if (cardIndex !== -1) {
-                    // 切換鎖定狀態
                     const nextLockState = !activeCardsData[cardIndex].isLocked;
                     activeCardsData[cardIndex].isLocked = nextLockState;
                     
@@ -447,12 +483,9 @@
                     btn.classList.add(`status-${currentStatus}`);
                 }
 
-                // 在老師模式下，且「卡片尚未鎖定」時才可以點選變色
                 if (isTeacher) {
                     btn.onclick = () => {
-                        // 如果已經點擊了鎖定，要點選必須先按解鎖
                         if (card.classList.contains('hide-green') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) {
-                            // 已經隱藏綠色的情況下，只能點選原本就漏交的紅字，不能無中生有
                             return;
                         }
 
