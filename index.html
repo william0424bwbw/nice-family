@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NICE家族作業登記版 5.0 雲端同步版</title>
+    <style>
+        :root {
+            --bg-color: #1e1e24;
+            --card-bg: #2d2d3a;
+            --text-main: #ffffff;
+            --text-sub: #b3b3cc;
+            --level-0: #2a9d8f; 
+            --level-1: #f4a261; 
+            --level-2: #e63946; 
+            --level-3: #7209b7; 
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .title-area {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            color: #4cc9f0;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px rgba(76, 201, 240, 0.3);
+        }
+
+        .subtitle {
+            color: var(--text-sub);
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+
+        .btn-clear-all {
+            position: absolute;
+            right: 10px;
+            top: 15px;
+            background-color: #e63946;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+            display: none; 
+        }
+
+        .btn-clear-all:hover {
+            background-color: #b31f2a;
+            transform: scale(1.05);
+        }
+
+        /* 控制台 */
+        .control-panel {
+            background: #252530;
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            display: none; 
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #3e3e50;
+        }
+
+        .select-style, .input-style, .btn-add {
+            padding: 12px 20px;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            border: none;
+            outline: none;
+            font-weight: bold;
+        }
+
+        .select-style { background-color: #3b3b4f; color: white; cursor: pointer; }
+        .input-style { background-color: #fff; color: #333; display: none; width: 180px; }
+        .btn-add { background-color: #4cc9f0; color: #1e1e24; cursor: pointer; transition: all 0.2s; }
+        .btn-add:hover { background-color: #4361ee; color: white; transform: scale(1.05); }
+
+        .loading-hint {
+            text-align: center;
+            font-size: 1.5rem;
+            color: #fccc52;
+            margin: 20px;
+        }
+
+        /* 卡片畫布 */
+        .board-canvas {
+            display: flex;
+            gap: 25px;
+            overflow-x: auto;
+            padding-bottom: 20px;
+            align-items: flex-start;
+            min-height: 400px;
+        }
+
+        .homework-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            min-width: 280px;
+            max-width: 280px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border: 2px solid #3e3e50;
+            position: relative;
+            flex-shrink: 0;
+            transition: all 0.4s ease;
+        }
+
+        .homework-card.fade-out {
+            transform: scale(0.8) translateY(-50px);
+            opacity: 0;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 2px dashed #4e4e62;
+            padding-bottom: 10px;
+        }
+
+        .card-title { font-size: 1.3rem; font-weight: bold; color: #fccc52; }
+        .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; display: none; }
+
+        /* 學生矩陣 */
+        .student-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .student-node {
+            aspect-ratio: 1.2; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; color: white;
+            background-color: var(--level-0); cursor: default; transition: all 0.15s ease; box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+        .teacher-mode .student-node { cursor: pointer; } 
+
+        .student-node.status-1 { background-color: var(--level-1); color: #1e1e24; }
+        .student-node.status-2 { background-color: var(--level-2); font-size: 1.3rem; box-shadow: 0 0 10px rgba(230, 57, 70, 0.5); }
+        .student-node.status-3 { background-color: var(--level-3); font-size: 1.4rem; animation: danger-blink 1s infinite alternate; }
+
+        @keyframes danger-blink {
+            0% { opacity: 0.7; transform: scale(0.95); }
+            100% { opacity: 1; transform: scale(1.05); box-shadow: 0 0 15px #7209b7; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="title-area">
+        <h1>📋 NICE家族作業登記版 5.0</h1>
+        <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
+        <button class="btn-clear-all" id="clearAllBtn" onclick="clearAllCards()">🧹 全面板模重置</button>
+    </div>
+
+    <div class="control-panel" id="controlPanel">
+        <select class="select-style" id="taskSelect" onchange="toggleCustomInput()">
+            <option value="">-- 請選擇欲掛上的作業 --</option>
+            <option value="國習">國習</option>
+            <option value="預習本">預習本</option>
+            <option value="圈詞">圈詞</option>
+            <option value="甲本">甲本</option>
+            <option value="乙本">乙本</option>
+            <option value="聽寫">聽寫</option>
+            <option value="字音字形">字音字形</option>
+            <option value="默寫">默寫</option>
+            <option value="數習">數習</option>
+            <option value="數重">數重</option>
+            <option value="數作">數作</option>
+            <option value="數課">數課</option>
+            <option value="CUSTOM">💡 自行輸入新作業</option>
+        </select>
+        <input type="text" class="input-style" id="customInput" placeholder="請打上新作業名稱">
+        <button class="btn-add" onclick="createNewCard()">＋ 掛上登記板</button>
+    </div>
+
+    <div class="loading-hint" id="loadingHint">⏳ 雲端資料同步中，請稍候...</div>
+    <div class="board-canvas" id="boardCanvas"></div>
+
+    <script>
+        // 大熊老師的專屬雲端 API 鑰匙
+        const cloudUrl = "https://script.google.com/macros/s/AKfycby60_GyNszlRXQyrJSgvi_zxx4G9swTuDj_jUQeLABa68kwz1R6ag9dWRQHyaW-S2sE/exec";
+
+        const totalStudents = 24;
+        let activeCardsData = []; 
+        let isTeacher = false;
+
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('mode') === 'teacher') {
+                isTeacher = true;
+                document.getElementById('controlPanel').style.display = 'flex';
+                document.getElementById('clearAllBtn').style.display = 'block';
+                document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（修改將即時同步雲端）';
+                document.body.classList.add('teacher-mode');
+            } else {
+                document.getElementById('viewModeHint').textContent = '👁️ 家長/學生即時查閱看板（每 10 秒自動刷新）';
+                setInterval(fetchCloudData, 10000); // 家長端每10秒自動跟雲端同步
+            }
+            fetchCloudData();
+        };
+
+        function fetchCloudData() {
+            fetch(cloudUrl)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loadingHint').style.display = 'none';
+                activeCardsData = data;
+                renderBoard();
+            }).catch(err => {
+                document.getElementById('loadingHint').textContent = "❌ 雲端連線失敗，請確認雲端 Apps Script 部署狀態。";
+            });
+        }
+
+        function pushToCloud(payload) {
+            fetch(cloudUrl, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            }).then(res => res.json())
+              .then(res => console.log("雲端同步成功:", res));
+        }
+
+        function renderBoard() {
+            const canvas = document.getElementById('boardCanvas');
+            canvas.innerHTML = ""; 
+            
+            activeCardsData.forEach(cardData => {
+                renderCard(cardData.fullTitle, cardData.statusArray);
+            });
+        }
+
+        function toggleCustomInput() {
+            const select = document.getElementById('taskSelect');
+            const customInput = document.getElementById('customInput');
+            if (select.value === "CUSTOM") {
+                customInput.style.display = "inline-block";
+                customInput.focus();
+            } else {
+                customInput.style.display = "none";
+                customInput.value = "";
+            }
+        }
+
+        function getTodayDateString() {
+            const today = new Date();
+            return `${today.getMonth() + 1}/${today.getDate()}`;
+        }
+
+        function createNewCard() {
+            if (!isTeacher) return;
+            const select = document.getElementById('taskSelect');
+            const customInput = document.getElementById('customInput');
+            let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value;
+
+            if (!pureTaskName) {
+                alert("大熊老師，請先選擇或輸入作業名稱喔！");
+                return;
+            }
+
+            const dateStr = getTodayDateString();
+            const fullTitle = `${pureTaskName} ${dateStr}`;
+
+            if (activeCardsData.some(c => c.fullTitle === fullTitle)) {
+                alert(`🚨 防呆提醒：大熊老師，黑板上今天已經有「${fullTitle}」囉！`);
+                return;
+            }
+
+            let inheritedStatus = Array(totalStudents + 1).fill(0); 
+            const oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
+            
+            if (oldCard) {
+                const countUnfinished = oldCard.statusArray.filter(s => s > 0).length;
+                if (countUnfinished > 0) {
+                    const confirmInherit = confirm(`🔍 偵測到先前的「${oldCard.fullTitle}」，還有 ${countUnfinished} 人未完成。\n\n是否直接承接狀態到今天的 ${fullTitle} 中？`);
+                    if (confirmInherit) {
+                        inheritedStatus = [...oldCard.statusArray]; 
+                    }
+                }
+            }
+
+            const newCardData = {
+                fullTitle: fullTitle,
+                pureName: pureTaskName,
+                statusArray: inheritedStatus
+            };
+            
+            activeCardsData.push(newCardData);
+            renderBoard();
+
+            pushToCloud({
+                action: "saveOrUpdate",
+                fullTitle: fullTitle,
+                pureName: pureTaskName,
+                statusArray: inheritedStatus
+            });
+
+            select.value = "";
+            customInput.value = "";
+            customInput.style.display = "none";
+        }
+
+        function renderCard(fullTitle, statusArray) {
+            const canvas = document.getElementById('boardCanvas');
+            const card = document.createElement('div');
+            card.className = 'homework-card';
+            card.id = `card_${fullTitle}`;
+
+            const header = document.createElement('div');
+            header.className = 'card-header';
+            
+            const title = document.createElement('div');
+            title.className = 'card-title';
+            title.textContent = fullTitle;
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete';
+            delBtn.innerHTML = '🗑️';
+            if (isTeacher) delBtn.style.display = 'block';
+            delBtn.onclick = () => removeCard(fullTitle, true);
+
+            header.appendChild(title);
+            header.appendChild(delBtn);
+            card.appendChild(header);
+
+            const matrix = document.createElement('div');
+            matrix.className = 'student-matrix';
+
+            for (let s = 1; s <= totalStudents; s++) {
+                const btn = document.createElement('button');
+                btn.className = 'student-node';
+                btn.textContent = s;
+                
+                const currentStatus = statusArray[s];
+                btn.dataset.status = currentStatus;
+                if (currentStatus > 0) {
+                    btn.classList.add(`status-${currentStatus}`);
+                }
+
+                if (isTeacher) {
+                    btn.onclick = () => {
+                        let status = parseInt(btn.dataset.status);
+                        status = (status + 1) % 4;
+                        btn.dataset.status = status;
+
+                        const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
+                        if (cardIndex !== -1) {
+                            activeCardsData[cardIndex].statusArray[s] = status;
+                            
+                            pushToCloud({
+                                action: "saveOrUpdate",
+                                fullTitle: fullTitle,
+                                pureName: activeCardsData[cardIndex].pureName,
+                                statusArray: activeCardsData[cardIndex].statusArray
+                            });
+                            
+                            checkCardCompletion(cardIndex);
+                        }
+
+                        btn.classList.remove('status-1', 'status-2', 'status-3');
+                        if (status > 0) {
+                            btn.classList.add(`status-${status}`);
+                        }
+                    };
+                }
+
+                matrix.appendChild(btn);
+            }
+
+            card.appendChild(matrix);
+            canvas.appendChild(card);
+        }
+
+        function checkCardCompletion(cardIndex) {
+            const cardData = activeCardsData[cardIndex];
+            if (!cardData) return;
+
+            const isAllGreen = cardData.statusArray.slice(1, totalStudents + 1).every(status => status === 0);
+
+            if (isAllGreen) {
+                const targetTitle = cardData.fullTitle;
+                const cardElement = document.getElementById(`card_${targetTitle}`);
+                
+                if (cardElement) {
+                    cardElement.classList.add('fade-out');
+                    setTimeout(() => {
+                        cardElement.remove();
+                        activeCardsData = activeCardsData.filter(item => item.fullTitle !== targetTitle);
+                        pushToCloud({ action: "delete", fullTitle: targetTitle }); 
+                    }, 400);
+                }
+            }
+        }
+
+        function removeCard(fullTitle, askConfirm = true) {
+            if(!askConfirm || confirm(`確定要取下「${fullTitle}」這塊登記板嗎？`)) {
+                const card = document.getElementById(`card_${fullTitle}`);
+                if (card) card.remove();
+                activeCardsData = activeCardsData.filter(item => item.fullTitle !== fullTitle);
+                pushToCloud({ action: "delete", fullTitle: fullTitle }); 
+            }
+        }
+
+        function clearAllCards() {
+            if(confirm("⚠ 大熊老師，確定要把目前雲端黑板上所有的作業卡片全部清空重置嗎？")) {
+                document.getElementById('boardCanvas').innerHTML = "";
+                activeCardsData = [];
+                pushToCloud({ action: "clearAll" }); 
+            }
+        }
+    </script>
+</body>
+</html>
