@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族作業登記版 6.5 網址自救版</title>
+    <title>NICE家族作業登記版 6.8 考試瘦身版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -132,40 +132,69 @@
         .btn-lock.locked { background-color: #2a9d8f; }
         .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; display: none; }
 
+        /* 學生號碼矩陣設計 */
         .student-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         .student-node {
             aspect-ratio: 1.2; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; color: white;
-            background-color: var(--level-0); cursor: default; transition: all 0.15s ease; box-shadow: 0 3px 0 rgba(0,0,0,0.2);
+            background-color: var(--level-0); transition: all 0.15s ease; box-shadow: 0 3px 0 rgba(0,0,0,0.2);
         }
         .teacher-mode .student-node { cursor: pointer; } 
-        .homework-card.hide-green .student-node[data-status="0"] { display: none; }
+        
+        /* 隱藏綠色名單的共用樣式 */
+        .hide-green-mode .student-node[data-status="0"] { display: none; }
 
         .student-node.status-1 { background-color: var(--level-1); color: #1e1e24; }
         .student-node.status-2 { background-color: var(--level-2); font-size: 1.2rem; box-shadow: 0 0 8px rgba(230, 57, 70, 0.5); }
         .student-node.status-3 { background-color: var(--level-3); font-size: 1.25rem; animation: danger-blink 1s infinite alternate; }
 
-        /* 學期考試表格樣式 */
-        .exam-table-container {
-            max-width: 1250px; margin: 0 auto; overflow-x: auto; background: var(--card-bg);
-            padding: 15px; border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); display: none; padding-bottom: 60px;
+        /* 📊 考試大表格「極致瘦身」全新架構 */
+        .exam-mode-container {
+            max-width: 900px; margin: 0 auto; background: var(--card-bg);
+            padding: 20px; border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); 
+            border: 2px solid #4e4e62; display: none;
         }
 
-        table { width: 100%; border-collapse: collapse; text-align: center; }
-        th, td { padding: 10px; border: 1px solid #4e4e62; font-weight: bold; position: relative; }
-        th { background-color: #3b3b4f; color: #4cc9f0; font-size: 1rem; }
-        td.seat-col { background-color: #3b3b4f; color: white; font-size: 1.05rem; }
-
-        .btn-del-exam { position: absolute; right: 2px; top: 2px; background: none; border: none; color: #ef4444; font-size: 0.75rem; cursor: pointer; display: none; }
-        .teacher-mode .btn-del-exam { display: block; }
-
-        .table-cell-btn {
-            width: 35px; height: 35px; border-radius: 50%; border: none; font-size: 0.9rem;
-            font-weight: bold; color: white; background-color: var(--level-0); cursor: default; transition: 0.15s;
+        .exam-selector-zone {
+            display: flex; justify-content: center; align-items: center; gap: 15px;
+            margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px dashed #4e4e62;
         }
-        .teacher-mode .table-cell-btn { cursor: pointer; }
-        .table-cell-btn.status-1 { background-color: var(--level-1); color: #1e1e24; }
-        .table-cell-btn.status-2 { background-color: var(--level-2); box-shadow: 0 0 5px var(--level-2); }
-        .table-cell-btn.status-3 { background-color: var(--level-3); animation: danger-blink 1s infinite alternate; }
+
+        .exam-view-title { font-size: 1.3rem; font-weight: bold; color: #fccc52; }
+
+        /* 左右拆分雙大欄排版 */
+        .exam-split-layout {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
+        }
+
+        .exam-column-box {
+            background: #252530; padding: 15px; border-radius: 10px; border: 1px solid #3e3e50;
+        }
+
+        .column-box-title {
+            text-align: center; font-size: 1.1rem; font-weight: bold; color: #4cc9f0;
+            margin-bottom: 12px; border-bottom: 1px solid #3e3e50; padding-bottom: 5px;
+        }
+
+        /* 考試專用大顆號碼矩陣 (3欄排版，字體放大) */
+        .exam-matrix-adaptive {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+        }
+
+        .exam-matrix-adaptive .student-node {
+            aspect-ratio: 1.3; font-size: 1.2rem; /* 放大號碼球，大螢幕更好點 */
+        }
+
+        .btn-table-lock {
+            background-color: #4361ee; color: white; border: none; padding: 8px 16px;
+            border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem;
+        }
+        .btn-table-lock.locked { background-color: #2a9d8f; }
+
+        .btn-single-del {
+            background-color: #e63946; color: white; border: none; padding: 8px 12px;
+            border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; display: none;
+        }
+        .teacher-mode .btn-single-del { display: inline-block; }
 
         @keyframes danger-blink {
             0% { opacity: 0.7; transform: scale(0.95); }
@@ -176,7 +205,7 @@
 <body>
 
     <div class="title-area">
-        <h1>📋 NICE家族作業登記版 6.5</h1>
+        <h1>📋 NICE家族作業登記版 6.8</h1>
         <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
         
         <div class="top-tools">
@@ -188,6 +217,7 @@
         </div>
     </div>
 
+    <!-- 雙模式切換按鈕 -->
     <div class="mode-tabs">
         <button class="tab-btn active" id="tabDaily" onclick="switchMode('daily')">📁 日常作業消消樂</button>
         <button class="tab-btn" id="tabExam" onclick="switchMode('exam')">📊 學期考試大標靶</button>
@@ -227,27 +257,45 @@
     </div>
 
     <div class="loading-hint" id="loadingHint">⏳ 雲端資料同步中，請稍候...</div>
+    
+    <!-- 模式 A：日常卡片畫布 -->
     <div class="board-canvas" id="boardCanvas"></div>
 
-    <div class="exam-table-container" id="examTableContainer">
-        <table>
-            <thead>
-                <tr id="tableHeaderRow"><th style="width: 70px;">座號</th></tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+    <!-- 📊 模式 B：修復優化後的學期考試「防滑瘦身」看板 -->
+    <div class="exam-mode-container" id="examTableContainer">
+        <div class="exam-selector-zone">
+            <span class="exam-view-title">🔍 請選擇考試項目：</span>
+            <select class="select-style" id="examActiveSelect" onchange="renderExamTable()" style="min-width: 200px;">
+                <!-- 動態注入考試科目 -->
+            </select>
+            <!-- 大表格專屬鎖定按鈕 -->
+            <button class="btn-table-lock" id="btnTableLock" onclick="toggleTableLock()">🔒 鎖定黑板 (隱藏完成)</button>
+            <button class="btn-single-del" id="btnSingleDel" onclick="triggerDeleteSingleExam()">🗑️ 刪除此科</button>
+        </div>
+
+        <!-- 拆分排版：1-12號一邊，13-24號一邊，一頁看全班 -->
+        <div class="exam-split-layout" id="examSplitLayout">
+            <!-- 左大欄：前段班 -->
+            <div class="exam-column-box">
+                <div class="column-box-title">01 ~ 12 號</div>
+                <div class="exam-matrix-adaptive" id="examMatrixLeft"></div>
+            </div>
+            <!-- 右大欄：後段班 -->
+            <div class="exam-column-box">
+                <div class="column-box-title">13 ~ 24 號</div>
+                <div class="exam-matrix-adaptive" id="examMatrixRight"></div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // ⚠️ 大熊老師：請務必檢查下面雙引號內的網址！
-        // 如果這個網址沒換成你在 Apps Script 複製的「最新 Web App 網址」，雲端同步會失敗，但網頁現在依然可以新增。
         const cloudUrl = "https://script.google.com/macros/s/AKfycby60_GyNszlRXQyrJSgvi_zxx4G9swTuDj_jUQeLABa68kwz1R6ag9dWRQHyaW-S2sE/exec";
-
         const totalStudents = 24;
         let activeCardsData = []; 
         let examRecordsData = [];
         let isTeacher = false;
         let currentMode = 'daily';
+        let isTableLocked = false; // 考試大表格預設不鎖定
 
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -293,7 +341,6 @@
         }
 
         function fetchCloudData() {
-            // 加入 5 秒超時斷開機制，防止雲端掛掉導致網頁跟著卡死
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -303,26 +350,45 @@
                 clearTimeout(timeoutId);
                 document.getElementById('loadingHint').style.display = 'none';
                 activeCardsData = data.daily || [];
+                
+                // 讀取並更新選單
+                const prevSelected = document.getElementById('examActiveSelect').value;
                 examRecordsData = data.exam || [];
+                updateExamSelectOptions(prevSelected);
+
                 renderBoard();
                 renderExamTable();
             }).catch(err => {
                 clearTimeout(timeoutId);
-                document.getElementById('loadingHint').innerHTML = "⚠️ 提示：目前處於離線快打模式（雲端網址未正確綁定或對接中）。";
+                document.getElementById('loadingHint').innerHTML = "⚠️ 提示：目前處於離線快打模式。";
                 renderBoard();
                 renderExamTable();
             });
         }
 
-        function pushToCloud(payload) {
-            fetch(cloudUrl, {
-                method: "POST",
-                mode: "no-cors", // 開啟無阻礙跨網域傳輸，防止後台當機拖累網頁
-                body: JSON.stringify(payload)
-            }).catch(err => console.log("本機成功，雲端排隊中"));
+        function updateExamSelectOptions(prevSelected) {
+            const select = document.getElementById('examActiveSelect');
+            select.innerHTML = "";
+            if (examRecordsData.length === 0) {
+                select.innerHTML = "<option value=''>-- 目前尚無考試項目 --</option>";
+                return;
+            }
+            examRecordsData.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.examName;
+                opt.textContent = e.examName;
+                select.appendChild(opt);
+            });
+            if (prevSelected && examRecordsData.some(e => e.examName === prevSelected)) {
+                select.value = prevSelected;
+            }
         }
 
-        // --- 模式 A：日常作業 ---
+        function pushToCloud(payload) {
+            fetch(cloudUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
+        }
+
+        // --- 模式 A：日常作業卡片 ---
         function renderBoard() {
             const canvas = document.getElementById('boardCanvas');
             canvas.innerHTML = ""; 
@@ -335,13 +401,10 @@
             const canvas = document.getElementById('boardCanvas');
             const card = document.createElement('div');
             card.className = 'homework-card';
-            card.id = `card_${fullTitle}`;
-
-            if (isCardLocked || !isTeacher) card.classList.add('hide-green');
+            if (isCardLocked || !isTeacher) card.classList.add('hide-green-mode');
 
             const header = document.createElement('div');
             header.className = 'card-header';
-            
             const title = document.createElement('div');
             title.className = 'card-title';
             title.textContent = fullTitle;
@@ -371,8 +434,7 @@
             };
 
             const delBtn = document.createElement('button');
-            delBtn.className = 'btn-delete';
-            delBtn.innerHTML = '🗑️';
+            delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️';
             if (isTeacher) delBtn.style.display = 'block';
             delBtn.onclick = () => removeCard(fullTitle);
 
@@ -387,19 +449,15 @@
 
             for (let s = 1; s <= totalStudents; s++) {
                 const btn = document.createElement('button');
-                btn.className = 'student-node';
-                btn.textContent = s;
-                
+                btn.className = 'student-node'; btn.textContent = s;
                 const currentStatus = statusArray[s] || 0;
                 btn.dataset.status = currentStatus;
                 if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
 
                 if (isTeacher) {
                     btn.onclick = () => {
-                        if (card.classList.contains('hide-green') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
-
-                        let status = parseInt(btn.dataset.status);
-                        status = (status + 1) % 4;
+                        if (card.classList.contains('hide-green-mode') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
+                        let status = (parseInt(btn.dataset.status) + 1) % 4;
                         btn.dataset.status = status;
 
                         const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
@@ -413,7 +471,7 @@
                             });
                             checkCardCompletion(cardIndex);
                         }
-                        btn.classList.remove('status-1', 'status-2', 'status-3');
+                        btn.className = 'student-node';
                         if (status > 0) btn.classList.add(`status-${status}`);
                     };
                 }
@@ -423,67 +481,80 @@
             canvas.appendChild(card);
         }
 
-        // --- 模式 B：學期考試 ---
+        // --- 📊 模式 B：極致防滑瘦身大表格渲染 ---
         function renderExamTable() {
-            const headerRow = document.getElementById('tableHeaderRow');
-            const tbody = document.getElementById('tableBody');
+            const leftMatrix = document.getElementById('examMatrixLeft');
+            const rightMatrix = document.getElementById('examMatrixRight');
+            const layoutBox = document.getElementById('examSplitLayout');
             
-            headerRow.innerHTML = '<th style="width: 70px;">座號</th>';
-            examRecordsData.forEach(exam => {
-                const th = document.createElement('th');
-                th.textContent = exam.examName;
-                
-                const delExamBtn = document.createElement('button');
-                delExamBtn.className = 'btn-del-exam';
-                delExamBtn.textContent = '❌';
-                delExamBtn.onclick = () => removeExamColumn(exam.examName);
-                th.appendChild(delExamBtn);
+            leftMatrix.innerHTML = "";
+            rightMatrix.innerHTML = "";
 
-                headerRow.appendChild(th);
-            });
+            const activeExamName = document.getElementById('examActiveSelect').value;
+            if (!activeExamName) return;
 
-            tbody.innerHTML = "";
-            for (let s = 1; s <= totalStudents; s++) {
-                const tr = document.createElement('tr');
-                const tdSeat = document.createElement('td');
-                tdSeat.className = 'seat-col';
-                tdSeat.textContent = String(s).padStart(2, '0');
-                tr.appendChild(tdSeat);
+            const examData = examRecordsData.find(e => e.examName === activeExamName);
+            const statusArray = examData ? examData.statusArray : Array(totalStudents + 1).fill(0);
 
-                examRecordsData.forEach(exam => {
-                    const tdCell = document.createElement('td');
-                    const cellBtn = document.createElement('button');
-                    cellBtn.className = 'table-cell-btn';
-                    cellBtn.textContent = s;
-
-                    const currentStatus = exam.statusArray[s] || 0;
-                    cellBtn.dataset.status = currentStatus;
-                    if (currentStatus > 0) cellBtn.classList.add(`status-${currentStatus}`);
-
-                    if (isTeacher) {
-                        cellBtn.onclick = () => {
-                            let status = parseInt(cellBtn.dataset.status);
-                            status = (status + 1) % 4;
-                            cellBtn.dataset.status = status;
-
-                            const eIdx = examRecordsData.findIndex(e => e.examName === exam.examName);
-                            if (eIdx !== -1) {
-                                examRecordsData[eIdx].statusArray[s] = status;
-                                pushToCloud({
-                                    action: "saveExam",
-                                    examName: exam.examName,
-                                    statusArray: examRecordsData[eIdx].statusArray
-                                });
-                            }
-                            cellBtn.classList.remove('status-1', 'status-2', 'status-3');
-                            if (status > 0) cellBtn.classList.add(`status-${status}`);
-                        };
-                    }
-                    tdCell.appendChild(cellBtn);
-                    tr.appendChild(tdCell);
-                });
-                tbody.appendChild(tr);
+            // 根據鎖定狀態或家長唯讀模式決定是否隱藏綠色
+            if (isTableLocked || !isTeacher) {
+                layoutBox.classList.add('hide-green-mode');
+            } else {
+                layoutBox.classList.add('hide-green-mode'); // 預設家長端完全隱藏
+                if(isTeacher) layoutBox.classList.remove('hide-green-mode'); // 老師沒鎖定時展開
             }
+
+            // 分流：1~24號拆成兩邊
+            for (let s = 1; s <= totalStudents; s++) {
+                const btn = document.createElement('button');
+                btn.className = 'student-node';
+                btn.textContent = String(s).padStart(2, '0'); // 補零視覺更整齊
+                
+                const currentStatus = statusArray[s] || 0;
+                btn.dataset.status = currentStatus;
+                if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
+
+                if (isTeacher) {
+                    btn.onclick = () => {
+                        if (layoutBox.classList.contains('hide-green-mode') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
+                        let status = (parseInt(btn.dataset.status) + 1) % 4;
+                        btn.dataset.status = status;
+
+                        const eIdx = examRecordsData.findIndex(e => e.examName === activeExamName);
+                        if (eIdx !== -1) {
+                            examRecordsData[eIdx].statusArray[s] = status;
+                            pushToCloud({
+                                action: "saveExam",
+                                examName: activeExamName,
+                                statusArray: examRecordsData[eIdx].statusArray
+                            });
+                        }
+                        btn.className = 'student-node';
+                        if (status > 0) btn.classList.add(`status-${status}`);
+                    };
+                }
+
+                // 1-12放左邊，13-24放右邊
+                if (s <= 12) {
+                    leftMatrix.appendChild(btn);
+                } else {
+                    rightMatrix.appendChild(btn);
+                }
+            }
+        }
+
+        // 大表格鎖定切換
+        function toggleTableLock() {
+            isTableLocked = !isTableLocked;
+            const btn = document.getElementById('btnTableLock');
+            if (isTableLocked) {
+                btn.textContent = "🔓 解鎖表格 (顯示全班)";
+                btn.classList.add('locked');
+            } else {
+                btn.textContent = "🔒 鎖定表格 (隱藏完成)";
+                btn.classList.remove('locked');
+            }
+            renderExamTable();
         }
 
         function createNewCard() {
@@ -492,21 +563,15 @@
             const customInput = document.getElementById('customInput');
             let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value;
 
-            if (!pureTaskName) { alert("大熊老師，請先選擇或輸入作業名稱喔！"); return; }
-            
+            if (!pureTaskName) { alert("請先選擇或輸入作業名稱喔！"); return; }
             const today = new Date();
-            const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
-            const fullTitle = `${pureTaskName} ${dateStr}`;
+            const fullTitle = `${pureTaskName} ${today.getMonth() + 1}/${today.getDate()}`;
 
-            if (activeCardsData.some(c => c.fullTitle === fullTitle)) { alert(`🚨 防呆：今天已有「${fullTitle}」囉！`); return; }
+            if (activeCardsData.some(c => c.fullTitle === fullTitle)) { alert("今天已有此作業項目囉！"); return; }
 
             let inheritedStatus = Array(totalStudents + 1).fill(0); 
-
-            // 🛠️ 6.5 本機即刻釋放：不管雲端通不通，本機立刻把卡片長出來！
             activeCardsData.push({ fullTitle: fullTitle, pureName: pureTaskName, statusArray: inheritedStatus, isLocked: false });
             renderBoard();
-            
-            // 同步發送至雲端
             pushToCloud({ action: "saveOrUpdate", fullTitle: fullTitle, pureName: pureTaskName, statusArray: inheritedStatus, isLocked: false });
 
             select.value = ""; customInput.value = ""; customInput.style.display = "none";
@@ -517,38 +582,41 @@
             const subject = document.getElementById('examSubject').value;
             const unit = document.getElementById('examUnitInput').value.trim();
 
-            if (!unit) { alert("請先填寫單元名稱喔！"); return; }
+            if (!unit) { alert("請填寫單元名稱！"); return; }
             const fullExamName = `${subject}-${unit}`;
 
-            if (examRecordsData.some(e => e.examName === fullExamName)) { alert("大表格中已有此欄位囉！"); return; }
+            if (examRecordsData.some(e => e.examName === fullExamName)) { alert("已有此考試項目！"); return; }
 
             const initialStatus = Array(totalStudents + 1).fill(0);
             examRecordsData.push({ examName: fullExamName, statusArray: initialStatus });
+            
+            updateExamSelectOptions(fullExamName);
             renderExamTable();
 
             pushToCloud({ action: "saveExam", examName: fullExamName, statusArray: initialStatus });
             document.getElementById('examUnitInput').value = "";
         }
 
-        function removeExamColumn(examName) {
-            if (confirm(`確定要徹底刪除「${examName}」這整欄的考試紀錄嗎？`)) {
-                examRecordsData = examRecordsData.filter(e => e.examName !== examName);
+        function triggerDeleteSingleExam() {
+            const activeExamName = document.getElementById('examActiveSelect').value;
+            if (!activeExamName) return;
+            if (confirm(`確定要徹底刪除「${activeExamName}」這欄考試項目嗎？`)) {
+                examRecordsData = examRecordsData.filter(e => e.examName !== activeExamName);
+                updateExamSelectOptions("");
                 renderExamTable();
-                pushToCloud({ action: "deleteExam", examName: examName });
+                pushToCloud({ action: "deleteExam", examName: activeExamName });
             }
         }
 
         function triggerClear() {
             if (currentMode === 'daily') {
                 if(confirm("確定要清空目前大螢幕上「所有日常作業小卡」嗎？")) {
-                    document.getElementById('boardCanvas').innerHTML = "";
-                    activeCardsData = [];
+                    document.getElementById('boardCanvas').innerHTML = ""; activeCardsData = [];
                     pushToCloud({ action: "clearDaily" }); 
                 }
             } else {
-                if(confirm("確定要將一整學期累積的「學期考試大表格」全部清空重置嗎？")) {
-                    examRecordsData = [];
-                    renderExamTable();
+                if(confirm("⚠ 注意：確定要將一整學期累積的「所有考試項目」全部清空重置嗎？")) {
+                    examRecordsData = []; updateExamSelectOptions(""); renderExamTable();
                     pushToCloud({ action: "clearExam" }); 
                 }
             }
@@ -559,12 +627,8 @@
             const seatNo = parseInt(inputEl.value);
             if (isNaN(seatNo) || seatNo < 1 || seatNo > totalStudents) { alert("請輸入正確座號（1 ~ 24）"); return; }
 
-            let dailyMissing = [];
-            let examMissing = [];
-
-            activeCardsData.forEach(card => {
-                if (card.statusArray[seatNo] > 0) dailyMissing.push(`📌 ${card.fullTitle}`);
-            });
+            let dailyMissing = []; let examMissing = [];
+            activeCardsData.forEach(card => { if (card.statusArray[seatNo] > 0) dailyMissing.push(`📌 ${card.fullTitle}`); });
             examRecordsData.forEach(exam => {
                 if (exam.statusArray[seatNo] > 0) {
                     let levelText = (exam.statusArray[seatNo] === 1) ? "(未補考)" : (exam.statusArray[seatNo] === 2) ? "(延遲)" : "(⚠️釘子戶)";
@@ -590,8 +654,7 @@
         }
 
         function checkCardCompletion(cardIndex) {
-            const cardData = activeCardsData[cardIndex];
-            if (!cardData) return;
+            const cardData = activeCardsData[cardIndex]; if (!cardData) return;
             const isAllGreen = cardData.statusArray.slice(1, totalStudents + 1).every(status => status === 0);
             if (isAllGreen) {
                 const targetTitle = cardData.fullTitle;
@@ -609,8 +672,7 @@
 
         function removeCard(fullTitle) {
             if(confirm(`確定要取下「${fullTitle}」嗎？`)) {
-                const card = document.getElementById(`card_${fullTitle}`);
-                if (card) card.remove();
+                const card = document.getElementById(`card_${fullTitle}`); if (card) card.remove();
                 activeCardsData = activeCardsData.filter(item => item.fullTitle !== fullTitle);
                 pushToCloud({ action: "delete", fullTitle: fullTitle });
             }
