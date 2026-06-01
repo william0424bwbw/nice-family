@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族作業登記版 5.0 雲端同步版</title>
+    <title>NICE家族作業登記版 5.5 雲端鎖定版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -21,18 +21,19 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            padding: 20px;
+            padding: 15px;
+            font-size: 0.95rem; /* 整體字體微調小一點點 */
         }
 
         .title-area {
             position: relative;
-            max-width: 1200px;
+            max-width: 1300px;
             margin: 0 auto;
             text-align: center;
         }
 
         h1 {
-            font-size: 2.2rem;
+            font-size: 2rem; /* 字體微縮 */
             color: #4cc9f0;
             margin-bottom: 5px;
             text-shadow: 0 0 10px rgba(76, 201, 240, 0.3);
@@ -40,83 +41,97 @@
 
         .subtitle {
             color: var(--text-sub);
-            margin-bottom: 25px;
-            font-size: 1rem;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
         }
 
-        .btn-clear-all {
+        .top-tools {
             position: absolute;
             right: 10px;
-            top: 15px;
-            background-color: #e63946;
-            color: white;
+            top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-scroll, .btn-clear-all {
             border: none;
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
             transition: 0.2s;
-            display: none; 
+            font-size: 0.9rem;
         }
 
-        .btn-clear-all:hover {
-            background-color: #b31f2a;
-            transform: scale(1.05);
+        .btn-scroll {
+            background-color: #3b3b4f;
+            color: white;
+            display: none; /* 老師端才顯示 */
         }
+        .btn-scroll:hover { background-color: #4cc9f0; color: #1e1e24; }
+
+        .btn-clear-all {
+            background-color: #e63946;
+            color: white;
+            display: none; 
+        }
+        .btn-clear-all:hover { background-color: #b31f2a; }
 
         /* 控制台 */
         .control-panel {
             background: #252530;
-            padding: 20px;
-            border-radius: 15px;
+            padding: 15px;
+            border-radius: 12px;
             max-width: 800px;
-            margin: 0 auto 30px auto;
+            margin: 0 auto 25px auto;
             display: none; 
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 12px;
             align-items: center;
             justify-content: center;
             border: 1px solid #3e3e50;
         }
 
         .select-style, .input-style, .btn-add {
-            padding: 12px 20px;
-            font-size: 1.1rem;
-            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 1rem;
+            border-radius: 8px;
             border: none;
             outline: none;
             font-weight: bold;
         }
 
         .select-style { background-color: #3b3b4f; color: white; cursor: pointer; }
-        .input-style { background-color: #fff; color: #333; display: none; width: 180px; }
+        .input-style { background-color: #fff; color: #333; display: none; width: 160px; }
         .btn-add { background-color: #4cc9f0; color: #1e1e24; cursor: pointer; transition: all 0.2s; }
-        .btn-add:hover { background-color: #4361ee; color: white; transform: scale(1.05); }
+        .btn-add:hover { background-color: #4361ee; color: white; transform: scale(1.03); }
 
         .loading-hint {
             text-align: center;
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             color: #fccc52;
             margin: 20px;
         }
 
-        /* 卡片畫布 */
+        /* 可捲動的卡片畫布 */
         .board-canvas {
             display: flex;
-            gap: 25px;
+            gap: 20px;
             overflow-x: auto;
             padding-bottom: 20px;
             align-items: flex-start;
             min-height: 400px;
+            scroll-behavior: smooth; /* 平滑滾動 */
         }
 
+        /* 黑板卡片 */
         .homework-card {
             background: var(--card-bg);
-            border-radius: 16px;
-            padding: 20px;
-            min-width: 280px;
-            max-width: 280px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            border-radius: 14px;
+            padding: 15px;
+            min-width: 250px;
+            max-width: 250px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
             border: 2px solid #3e3e50;
             position: relative;
             flex-shrink: 0;
@@ -124,7 +139,7 @@
         }
 
         .homework-card.fade-out {
-            transform: scale(0.8) translateY(-50px);
+            transform: scale(0.8) translateY(-40px);
             opacity: 0;
         }
 
@@ -132,38 +147,70 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             border-bottom: 2px dashed #4e4e62;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
         }
 
-        .card-title { font-size: 1.3rem; font-weight: bold; color: #fccc52; }
-        .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; display: none; }
+        .card-title { font-size: 1.15rem; font-weight: bold; color: #fccc52; }
+        
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-lock {
+            background-color: #4361ee;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: none; /* 老師端才開啟 */
+        }
+        .btn-lock.locked {
+            background-color: #2a9d8f;
+        }
+
+        .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; display: none; }
 
         /* 學生矩陣 */
-        .student-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .student-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         .student-node {
-            aspect-ratio: 1.2; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; color: white;
-            background-color: var(--level-0); cursor: default; transition: all 0.15s ease; box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+            aspect-ratio: 1.2; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; color: white;
+            background-color: var(--level-0); cursor: default; transition: all 0.15s ease; box-shadow: 0 3px 0 rgba(0,0,0,0.2);
         }
         .teacher-mode .student-node { cursor: pointer; } 
 
+        /* 鎖定模式下，隱藏正常(綠色狀態0)的號碼 */
+        .homework-card.hide-green .student-node[data-status="0"] {
+            display: none;
+        }
+
         .student-node.status-1 { background-color: var(--level-1); color: #1e1e24; }
-        .student-node.status-2 { background-color: var(--level-2); font-size: 1.3rem; box-shadow: 0 0 10px rgba(230, 57, 70, 0.5); }
-        .student-node.status-3 { background-color: var(--level-3); font-size: 1.4rem; animation: danger-blink 1s infinite alternate; }
+        .student-node.status-2 { background-color: var(--level-2); font-size: 1.2rem; box-shadow: 0 0 8px rgba(230, 57, 70, 0.5); }
+        .student-node.status-3 { background-color: var(--level-3); font-size: 1.25rem; animation: danger-blink 1s infinite alternate; }
 
         @keyframes danger-blink {
             0% { opacity: 0.7; transform: scale(0.95); }
-            100% { opacity: 1; transform: scale(1.05); box-shadow: 0 0 15px #7209b7; }
+            100% { opacity: 1; transform: scale(1.05); box-shadow: 0 0 12px #7209b7; }
         }
     </style>
 </head>
 <body>
 
     <div class="title-area">
-        <h1>📋 NICE家族作業登記版 5.0</h1>
+        <h1>📋 NICE家族作業登記版 5.5</h1>
         <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
-        <button class="btn-clear-all" id="clearAllBtn" onclick="clearAllCards()">🧹 全面板模重置</button>
+        
+        <div class="top-tools">
+            <button class="btn-scroll" id="scrollLeftBtn" onclick="scrollCanvas(-300)">⬅ 往左滾動</button>
+            <button class="btn-scroll" id="scrollRightBtn" onclick="scrollCanvas(300)">➡ 往右滾動</button>
+            <button class="btn-clear-all" id="clearAllBtn" onclick="clearAllCards()">🧹 全面板模重置</button>
+        </div>
     </div>
 
     <div class="control-panel" id="controlPanel">
@@ -204,14 +251,22 @@
                 isTeacher = true;
                 document.getElementById('controlPanel').style.display = 'flex';
                 document.getElementById('clearAllBtn').style.display = 'block';
-                document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（修改將即時同步雲端）';
+                document.getElementById('scrollLeftBtn').style.display = 'block';
+                document.getElementById('scrollRightBtn').style.display = 'block';
+                document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（點選確認後按「鎖定」可隱藏綠色座號）';
                 document.body.classList.add('teacher-mode');
             } else {
-                document.getElementById('viewModeHint').textContent = '👁️ 家長/學生即時查閱看板（每 10 秒自動刷新）';
-                setInterval(fetchCloudData, 10000); // 家長端每10秒自動跟雲端同步
+                document.getElementById('viewModeHint').textContent = '👁️ 家長/學生即時查閱看板（預設僅顯示未完成名單，每 10 秒自動刷新）';
+                setInterval(fetchCloudData, 10000); 
             }
             fetchCloudData();
         };
+
+        // 左右滾動功能
+        function scrollCanvas(offset) {
+            const canvas = document.getElementById('boardCanvas');
+            canvas.scrollLeft += offset;
+        }
 
         function fetchCloudData() {
             fetch(cloudUrl)
@@ -238,7 +293,7 @@
             canvas.innerHTML = ""; 
             
             activeCardsData.forEach(cardData => {
-                renderCard(cardData.fullTitle, cardData.statusArray);
+                renderCard(cardData.fullTitle, cardData.statusArray, cardData.isLocked);
             });
         }
 
@@ -279,7 +334,7 @@
             }
 
             let inheritedStatus = Array(totalStudents + 1).fill(0); 
-            const oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
+            let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
             
             if (oldCard) {
                 const countUnfinished = oldCard.statusArray.filter(s => s > 0).length;
@@ -294,7 +349,8 @@
             const newCardData = {
                 fullTitle: fullTitle,
                 pureName: pureTaskName,
-                statusArray: inheritedStatus
+                statusArray: inheritedStatus,
+                isLocked: false // 預設剛新增是不鎖定的編輯狀態
             };
             
             activeCardsData.push(newCardData);
@@ -304,7 +360,8 @@
                 action: "saveOrUpdate",
                 fullTitle: fullTitle,
                 pureName: pureTaskName,
-                statusArray: inheritedStatus
+                statusArray: inheritedStatus,
+                isLocked: false
             });
 
             select.value = "";
@@ -312,11 +369,16 @@
             customInput.style.display = "none";
         }
 
-        function renderCard(fullTitle, statusArray) {
+        function renderCard(fullTitle, statusArray, isCardLocked) {
             const canvas = document.getElementById('boardCanvas');
             const card = document.createElement('div');
             card.className = 'homework-card';
             card.id = `card_${fullTitle}`;
+
+            // 如果該卡片已經鎖定，或者當前是家長模式(預設隱藏綠色)，就加上隱藏綠色的 Class
+            if (isCardLocked || !isTeacher) {
+                card.classList.add('hide-green');
+            }
 
             const header = document.createElement('div');
             header.className = 'card-header';
@@ -325,14 +387,50 @@
             title.className = 'card-title';
             title.textContent = fullTitle;
 
+            const actionsWrapper = document.createElement('div');
+            actionsWrapper.className = 'header-actions';
+
+            // 鎖定/解鎖按鈕 (只有老師管理模式看得到)
+            const lockBtn = document.createElement('button');
+            lockBtn.className = 'btn-lock';
+            if (isCardLocked) {
+                lockBtn.textContent = '🔓 解鎖編輯';
+                lockBtn.classList.add('locked');
+            } else {
+                lockBtn.textContent = '🔒 鎖定黑板';
+            }
+            
+            if (isTeacher) lockBtn.style.display = 'block';
+            
+            lockBtn.onclick = () => {
+                const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
+                if (cardIndex !== -1) {
+                    // 切換鎖定狀態
+                    const nextLockState = !activeCardsData[cardIndex].isLocked;
+                    activeCardsData[cardIndex].isLocked = nextLockState;
+                    
+                    pushToCloud({
+                        action: "saveOrUpdate",
+                        fullTitle: fullTitle,
+                        pureName: activeCardsData[cardIndex].pureName,
+                        statusArray: activeCardsData[cardIndex].statusArray,
+                        isLocked: nextLockState
+                    });
+                    renderBoard();
+                }
+            };
+
             const delBtn = document.createElement('button');
             delBtn.className = 'btn-delete';
             delBtn.innerHTML = '🗑️';
             if (isTeacher) delBtn.style.display = 'block';
             delBtn.onclick = () => removeCard(fullTitle, true);
 
+            actionsWrapper.appendChild(lockBtn);
+            actionsWrapper.appendChild(delBtn);
+
             header.appendChild(title);
-            header.appendChild(delBtn);
+            header.appendChild(actionsWrapper);
             card.appendChild(header);
 
             const matrix = document.createElement('div');
@@ -349,8 +447,15 @@
                     btn.classList.add(`status-${currentStatus}`);
                 }
 
+                // 在老師模式下，且「卡片尚未鎖定」時才可以點選變色
                 if (isTeacher) {
                     btn.onclick = () => {
+                        // 如果已經點擊了鎖定，要點選必須先按解鎖
+                        if (card.classList.contains('hide-green') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) {
+                            // 已經隱藏綠色的情況下，只能點選原本就漏交的紅字，不能無中生有
+                            return;
+                        }
+
                         let status = parseInt(btn.dataset.status);
                         status = (status + 1) % 4;
                         btn.dataset.status = status;
@@ -363,7 +468,8 @@
                                 action: "saveOrUpdate",
                                 fullTitle: fullTitle,
                                 pureName: activeCardsData[cardIndex].pureName,
-                                statusArray: activeCardsData[cardIndex].statusArray
+                                statusArray: activeCardsData[cardIndex].statusArray,
+                                isLocked: activeCardsData[cardIndex].isLocked
                             });
                             
                             checkCardCompletion(cardIndex);
