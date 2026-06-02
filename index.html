@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族作業登記版 6.8 考試瘦身版</title>
+    <title>NICE家族作業登記版 7.0 終極修羅版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -28,6 +28,7 @@
             margin: 0;
             padding: 15px;
             font-size: 0.95rem;
+            user-select: none; /* 防止長按時滑鼠選取到文字 */
         }
 
         .title-area {
@@ -50,7 +51,6 @@
             font-size: 0.9rem;
         }
 
-        /* 模式切換頁籤 */
         .mode-tabs {
             display: flex;
             justify-content: center;
@@ -76,7 +76,6 @@
             box-shadow: 0 0 15px rgba(76, 201, 240, 0.5);
         }
 
-        /* 頂部工具列 */
         .top-tools {
             position: absolute;
             right: 10px;
@@ -99,7 +98,6 @@
         .search-input { width: 90px; padding: 6px; font-size: 0.9rem; border-radius: 5px; border: none; text-align: center; font-weight: bold; }
         .btn-search { background-color: #4cc9f0; color: #1e1e24; border: none; padding: 6px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
 
-        /* 控制台 */
         .control-panel {
             background: #252530; padding: 15px; border-radius: 12px; max-width: 850px;
             margin: 0 auto 25px auto; display: none; flex-wrap: wrap; gap: 12px;
@@ -132,7 +130,6 @@
         .btn-lock.locked { background-color: #2a9d8f; }
         .btn-delete { background: none; border: none; color: #ef4444; font-size: 1.1rem; cursor: pointer; display: none; }
 
-        /* 學生號碼矩陣設計 */
         .student-matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         .student-node {
             aspect-ratio: 1.2; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; color: white;
@@ -140,14 +137,23 @@
         }
         .teacher-mode .student-node { cursor: pointer; } 
         
-        /* 隱藏綠色名單的共用樣式 */
         .hide-green-mode .student-node[data-status="0"] { display: none; }
 
         .student-node.status-1 { background-color: var(--level-1); color: #1e1e24; }
         .student-node.status-2 { background-color: var(--level-2); font-size: 1.2rem; box-shadow: 0 0 8px rgba(230, 57, 70, 0.5); }
         .student-node.status-3 { background-color: var(--level-3); font-size: 1.25rem; animation: danger-blink 1s infinite alternate; }
 
-        /* 📊 考試大表格「極致瘦身」全新架構 */
+        /* 💥 長按爆炸動態 特效樣式 */
+        @keyframes explode-effect {
+            0% { transform: scale(1); background-color: #fff; box-shadow: 0 0 20px #fff; }
+            50% { transform: scale(1.4); background-color: #fccc52; box-shadow: 0 0 40px #fccc52; }
+            100% { transform: scale(1); background-color: var(--level-0); }
+        }
+        .exploding {
+            animation: explode-effect 0.4s ease-out !important;
+        }
+
+        /* 考試大表格「極致瘦身」 */
         .exam-mode-container {
             max-width: 900px; margin: 0 auto; background: var(--card-bg);
             padding: 20px; border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); 
@@ -160,40 +166,15 @@
         }
 
         .exam-view-title { font-size: 1.3rem; font-weight: bold; color: #fccc52; }
+        .exam-split-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .exam-column-box { background: #252530; padding: 15px; border-radius: 10px; border: 1px solid #3e3e50; }
+        .column-box-title { text-align: center; font-size: 1.1rem; font-weight: bold; color: #4cc9f0; margin-bottom: 12px; border-bottom: 1px solid #3e3e50; padding-bottom: 5px; }
+        .exam-matrix-adaptive { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .exam-matrix-adaptive .student-node { aspect-ratio: 1.3; font-size: 1.2rem; }
 
-        /* 左右拆分雙大欄排版 */
-        .exam-split-layout {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 30px;
-        }
-
-        .exam-column-box {
-            background: #252530; padding: 15px; border-radius: 10px; border: 1px solid #3e3e50;
-        }
-
-        .column-box-title {
-            text-align: center; font-size: 1.1rem; font-weight: bold; color: #4cc9f0;
-            margin-bottom: 12px; border-bottom: 1px solid #3e3e50; padding-bottom: 5px;
-        }
-
-        /* 考試專用大顆號碼矩陣 (3欄排版，字體放大) */
-        .exam-matrix-adaptive {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-        }
-
-        .exam-matrix-adaptive .student-node {
-            aspect-ratio: 1.3; font-size: 1.2rem; /* 放大號碼球，大螢幕更好點 */
-        }
-
-        .btn-table-lock {
-            background-color: #4361ee; color: white; border: none; padding: 8px 16px;
-            border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem;
-        }
+        .btn-table-lock { background-color: #4361ee; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
         .btn-table-lock.locked { background-color: #2a9d8f; }
-
-        .btn-single-del {
-            background-color: #e63946; color: white; border: none; padding: 8px 12px;
-            border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; display: none;
-        }
+        .btn-single-del { background-color: #e63946; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; display: none; }
         .teacher-mode .btn-single-del { display: inline-block; }
 
         @keyframes danger-blink {
@@ -205,7 +186,7 @@
 <body>
 
     <div class="title-area">
-        <h1>📋 NICE家族作業登記版 6.8</h1>
+        <h1>📋 NICE家族作業登記版 7.0</h1>
         <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
         
         <div class="top-tools">
@@ -217,7 +198,6 @@
         </div>
     </div>
 
-    <!-- 雙模式切換按鈕 -->
     <div class="mode-tabs">
         <button class="tab-btn active" id="tabDaily" onclick="switchMode('daily')">📁 日常作業消消樂</button>
         <button class="tab-btn" id="tabExam" onclick="switchMode('exam')">📊 學期考試大標靶</button>
@@ -257,30 +237,21 @@
     </div>
 
     <div class="loading-hint" id="loadingHint">⏳ 雲端資料同步中，請稍候...</div>
-    
-    <!-- 模式 A：日常卡片畫布 -->
     <div class="board-canvas" id="boardCanvas"></div>
 
-    <!-- 📊 模式 B：修復優化後的學期考試「防滑瘦身」看板 -->
     <div class="exam-mode-container" id="examTableContainer">
         <div class="exam-selector-zone">
             <span class="exam-view-title">🔍 請選擇考試項目：</span>
-            <select class="select-style" id="examActiveSelect" onchange="renderExamTable()" style="min-width: 200px;">
-                <!-- 動態注入考試科目 -->
-            </select>
-            <!-- 大表格專屬鎖定按鈕 -->
+            <select class="select-style" id="examActiveSelect" onchange="renderExamTable()" style="min-width: 200px;"></select>
             <button class="btn-table-lock" id="btnTableLock" onclick="toggleTableLock()">🔒 鎖定黑板 (隱藏完成)</button>
             <button class="btn-single-del" id="btnSingleDel" onclick="triggerDeleteSingleExam()">🗑️ 刪除此科</button>
         </div>
 
-        <!-- 拆分排版：1-12號一邊，13-24號一邊，一頁看全班 -->
         <div class="exam-split-layout" id="examSplitLayout">
-            <!-- 左大欄：前段班 -->
             <div class="exam-column-box">
                 <div class="column-box-title">01 ~ 12 號</div>
                 <div class="exam-matrix-adaptive" id="examMatrixLeft"></div>
             </div>
-            <!-- 右大欄：後段班 -->
             <div class="exam-column-box">
                 <div class="column-box-title">13 ~ 24 號</div>
                 <div class="exam-matrix-adaptive" id="examMatrixRight"></div>
@@ -295,7 +266,7 @@
         let examRecordsData = [];
         let isTeacher = false;
         let currentMode = 'daily';
-        let isTableLocked = false; // 考試大表格預設不鎖定
+        let isTableLocked = false;
 
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -351,7 +322,6 @@
                 document.getElementById('loadingHint').style.display = 'none';
                 activeCardsData = data.daily || [];
                 
-                // 讀取並更新選單
                 const prevSelected = document.getElementById('examActiveSelect').value;
                 examRecordsData = data.exam || [];
                 updateExamSelectOptions(prevSelected);
@@ -374,121 +344,153 @@
                 return;
             }
             examRecordsData.forEach(e => {
-                const opt = document.createElement('option');
-                opt.value = e.examName;
-                opt.textContent = e.examName;
+                const opt = document.createElement('option'); opt.value = e.examName; opt.textContent = e.examName;
                 select.appendChild(opt);
             });
-            if (prevSelected && examRecordsData.some(e => e.examName === prevSelected)) {
-                select.value = prevSelected;
-            }
+            if (prevSelected && examRecordsData.some(e => e.examName === prevSelected)) select.value = prevSelected;
         }
 
         function pushToCloud(payload) {
             fetch(cloudUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
         }
 
-        // --- 模式 A：日常作業卡片 ---
+        // 💥 封裝核心功能：長按一擊必殺爆炸與普通單擊綁定
+        function bindNodeEvents(btn, s, type, identifier) {
+            if (!isTeacher) return;
+
+            let touchTimeout;
+            let isLongPress = false;
+
+            // 處理爆炸重置為綠色(0)
+            const executeExplosion = () => {
+                isLongPress = true;
+                btn.className = 'student-node exploding'; // 觸發爆炸動畫
+                
+                setTimeout(() => {
+                    btn.dataset.status = 0;
+                    btn.className = 'student-node'; // 回歸原本綠色
+
+                    if (type === 'daily') {
+                        const idx = activeCardsData.findIndex(c => c.fullTitle === identifier);
+                        if (idx !== -1) {
+                            activeCardsData[idx].statusArray[s] = 0;
+                            syncDailyCard(idx);
+                        }
+                    } else if (type === 'exam') {
+                        const idx = examRecordsData.findIndex(e => e.examName === identifier);
+                        if (idx !== -1) {
+                            examRecordsData[idx].statusArray[s] = 0;
+                            syncExamColumn(identifier, idx);
+                        }
+                    }
+                }, 400);
+            };
+
+            // 滑鼠長按事件
+            btn.onmousedown = (e) => {
+                isLongPress = false;
+                touchTimeout = setTimeout(executeExplosion, 800); // 按住 0.8 秒視為長按爆炸
+            };
+            btn.onmouseup = () => clearTimeout(touchTimeout);
+            btn.onmouseleave = () => clearTimeout(touchTimeout);
+
+            // 手機長按事件支援
+            btn.ontouchstart = (e) => {
+                isLongPress = false;
+                touchTimeout = setTimeout(executeExplosion, 800);
+            };
+            btn.ontouchend = () => clearTimeout(touchTimeout);
+
+            // 普通點擊事件（循環切換）
+            btn.onclick = () => {
+                if (isLongPress) { isLongPress = false; return; } // 如果是長按，阻止觸發點擊事件
+
+                // 防呆：如果是隱藏綠色狀態且本身是綠色，禁止點擊
+                const pNode = btn.parentNode.parentNode;
+                if (pNode.classList.contains('hide-green-mode') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
+
+                let status = (parseInt(btn.dataset.status) + 1) % 4;
+                btn.dataset.status = status;
+
+                if (type === 'daily') {
+                    const idx = activeCardsData.findIndex(c => c.fullTitle === identifier);
+                    if (idx !== -1) {
+                        activeCardsData[idx].statusArray[s] = status;
+                        syncDailyCard(idx);
+                    }
+                } else if (type === 'exam') {
+                    const idx = examRecordsData.findIndex(e => e.examName === identifier);
+                    if (idx !== -1) {
+                        examRecordsData[idx].statusArray[s] = status;
+                        syncExamColumn(identifier, idx);
+                    }
+                }
+
+                btn.className = 'student-node';
+                if (status > 0) btn.classList.add(`status-${status}`);
+            };
+        }
+
+        function syncDailyCard(idx) {
+            pushToCloud({
+                action: "saveOrUpdate", fullTitle: activeCardsData[idx].fullTitle,
+                pureName: activeCardsData[idx].pureName, statusArray: activeCardsData[idx].statusArray,
+                isLocked: activeCardsData[idx].isLocked
+            });
+            checkCardCompletion(idx);
+        }
+
+        function syncExamColumn(examName, idx) {
+            pushToCloud({ action: "saveExam", examName: examName, statusArray: examRecordsData[idx].statusArray });
+        }
+
+        // --- 模式 A：日常作業畫布 ---
         function renderBoard() {
-            const canvas = document.getElementById('boardCanvas');
-            canvas.innerHTML = ""; 
+            const canvas = document.getElementById('boardCanvas'); canvas.innerHTML = ""; 
             activeCardsData.forEach(cardData => {
-                renderCard(cardData.fullTitle, cardData.statusArray, cardData.isLocked);
+                const card = document.createElement('div');
+                card.className = 'homework-card'; card.id = `card_${cardData.fullTitle}`;
+                if (cardData.isLocked || !isTeacher) card.classList.add('hide-green-mode');
+
+                const header = document.createElement('div'); header.className = 'card-header';
+                const title = document.createElement('div'); title.className = 'card-title'; title.textContent = cardData.fullTitle;
+
+                const actionsWrapper = document.createElement('div'); actionsWrapper.className = 'header-actions';
+                const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'; lockBtn.textContent = cardData.isLocked ? '🔓 解鎖' : '🔒 鎖定';
+                if (cardData.isLocked) lockBtn.classList.add('locked');
+                if (isTeacher) lockBtn.style.display = 'block';
+                
+                lockBtn.onclick = () => {
+                    cardData.isLocked = !cardData.isLocked;
+                    pushToCloud({ action: "saveOrUpdate", fullTitle: cardData.fullTitle, pureName: cardData.pureName, statusArray: cardData.statusArray, isLocked: cardData.isLocked });
+                    renderBoard();
+                };
+
+                const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️';
+                if (isTeacher) delBtn.style.display = 'block';
+                delBtn.onclick = () => removeCard(cardData.fullTitle);
+
+                actionsWrapper.appendChild(lockBtn); actionsWrapper.appendChild(delBtn); header.appendChild(title); header.appendChild(actionsWrapper); card.appendChild(header);
+
+                const matrix = document.createElement('div'); matrix.className = 'student-matrix';
+                for (let s = 1; s <= totalStudents; s++) {
+                    const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = s;
+                    const currentStatus = cardData.statusArray[s] || 0;
+                    btn.dataset.status = currentStatus;
+                    if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
+                    
+                    bindNodeEvents(btn, s, 'daily', cardData.fullTitle); // 綁定長按爆炸與單擊
+                    matrix.appendChild(btn);
+                }
+                card.appendChild(matrix); canvas.appendChild(card);
             });
         }
 
-        function renderCard(fullTitle, statusArray, isCardLocked) {
-            const canvas = document.getElementById('boardCanvas');
-            const card = document.createElement('div');
-            card.className = 'homework-card';
-            if (isCardLocked || !isTeacher) card.classList.add('hide-green-mode');
-
-            const header = document.createElement('div');
-            header.className = 'card-header';
-            const title = document.createElement('div');
-            title.className = 'card-title';
-            title.textContent = fullTitle;
-
-            const actionsWrapper = document.createElement('div');
-            actionsWrapper.className = 'header-actions';
-
-            const lockBtn = document.createElement('button');
-            lockBtn.className = 'btn-lock';
-            lockBtn.textContent = isCardLocked ? '🔓 解鎖' : '🔒 鎖定';
-            if (isCardLocked) lockBtn.classList.add('locked');
-            if (isTeacher) lockBtn.style.display = 'block';
-            
-            lockBtn.onclick = () => {
-                const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
-                if (cardIndex !== -1) {
-                    const nextLockState = !activeCardsData[cardIndex].isLocked;
-                    activeCardsData[cardIndex].isLocked = nextLockState;
-                    pushToCloud({
-                        action: "saveOrUpdate", fullTitle: fullTitle,
-                        pureName: activeCardsData[cardIndex].pureName,
-                        statusArray: activeCardsData[cardIndex].statusArray,
-                        isLocked: nextLockState
-                    });
-                    renderBoard();
-                }
-            };
-
-            const delBtn = document.createElement('button');
-            delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️';
-            if (isTeacher) delBtn.style.display = 'block';
-            delBtn.onclick = () => removeCard(fullTitle);
-
-            actionsWrapper.appendChild(lockBtn);
-            actionsWrapper.appendChild(delBtn);
-            header.appendChild(title);
-            header.appendChild(actionsWrapper);
-            card.appendChild(header);
-
-            const matrix = document.createElement('div');
-            matrix.className = 'student-matrix';
-
-            for (let s = 1; s <= totalStudents; s++) {
-                const btn = document.createElement('button');
-                btn.className = 'student-node'; btn.textContent = s;
-                const currentStatus = statusArray[s] || 0;
-                btn.dataset.status = currentStatus;
-                if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
-
-                if (isTeacher) {
-                    btn.onclick = () => {
-                        if (card.classList.contains('hide-green-mode') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
-                        let status = (parseInt(btn.dataset.status) + 1) % 4;
-                        btn.dataset.status = status;
-
-                        const cardIndex = activeCardsData.findIndex(c => c.fullTitle === fullTitle);
-                        if (cardIndex !== -1) {
-                            activeCardsData[cardIndex].statusArray[s] = status;
-                            pushToCloud({
-                                action: "saveOrUpdate", fullTitle: fullTitle,
-                                pureName: activeCardsData[cardIndex].pureName,
-                                statusArray: activeCardsData[cardIndex].statusArray,
-                                isLocked: activeCardsData[cardIndex].isLocked
-                            });
-                            checkCardCompletion(cardIndex);
-                        }
-                        btn.className = 'student-node';
-                        if (status > 0) btn.classList.add(`status-${status}`);
-                    };
-                }
-                matrix.appendChild(btn);
-            }
-            card.appendChild(matrix);
-            canvas.appendChild(card);
-        }
-
-        // --- 📊 模式 B：極致防滑瘦身大表格渲染 ---
+        // --- 📊 模式 B：學期考試防滑瘦身區 ---
         function renderExamTable() {
-            const leftMatrix = document.getElementById('examMatrixLeft');
-            const rightMatrix = document.getElementById('examMatrixRight');
+            const leftMatrix = document.getElementById('examMatrixLeft'); const rightMatrix = document.getElementById('examMatrixRight');
             const layoutBox = document.getElementById('examSplitLayout');
-            
-            leftMatrix.innerHTML = "";
-            rightMatrix.innerHTML = "";
+            leftMatrix.innerHTML = ""; rightMatrix.innerHTML = "";
 
             const activeExamName = document.getElementById('examActiveSelect').value;
             if (!activeExamName) return;
@@ -496,83 +498,71 @@
             const examData = examRecordsData.find(e => e.examName === activeExamName);
             const statusArray = examData ? examData.statusArray : Array(totalStudents + 1).fill(0);
 
-            // 根據鎖定狀態或家長唯讀模式決定是否隱藏綠色
-            if (isTableLocked || !isTeacher) {
-                layoutBox.classList.add('hide-green-mode');
-            } else {
-                layoutBox.classList.add('hide-green-mode'); // 預設家長端完全隱藏
-                if(isTeacher) layoutBox.classList.remove('hide-green-mode'); // 老師沒鎖定時展開
-            }
+            if (isTableLocked || !isTeacher) { layoutBox.classList.add('hide-green-mode'); } 
+            else { layoutBox.classList.add('hide-green-mode'); if(isTeacher) layoutBox.classList.remove('hide-green-mode'); }
 
-            // 分流：1~24號拆成兩邊
             for (let s = 1; s <= totalStudents; s++) {
-                const btn = document.createElement('button');
-                btn.className = 'student-node';
-                btn.textContent = String(s).padStart(2, '0'); // 補零視覺更整齊
-                
+                const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = String(s).padStart(2, '0');
                 const currentStatus = statusArray[s] || 0;
                 btn.dataset.status = currentStatus;
                 if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
 
-                if (isTeacher) {
-                    btn.onclick = () => {
-                        if (layoutBox.classList.contains('hide-green-mode') && !btn.classList.contains('status-1') && !btn.classList.contains('status-2') && !btn.classList.contains('status-3')) return;
-                        let status = (parseInt(btn.dataset.status) + 1) % 4;
-                        btn.dataset.status = status;
+                bindNodeEvents(btn, s, 'exam', activeExamName); // 綁定長按爆炸與單擊
 
-                        const eIdx = examRecordsData.findIndex(e => e.examName === activeExamName);
-                        if (eIdx !== -1) {
-                            examRecordsData[eIdx].statusArray[s] = status;
-                            pushToCloud({
-                                action: "saveExam",
-                                examName: activeExamName,
-                                statusArray: examRecordsData[eIdx].statusArray
-                            });
-                        }
-                        btn.className = 'student-node';
-                        if (status > 0) btn.classList.add(`status-${status}`);
-                    };
-                }
-
-                // 1-12放左邊，13-24放右邊
-                if (s <= 12) {
-                    leftMatrix.appendChild(btn);
-                } else {
-                    rightMatrix.appendChild(btn);
-                }
+                if (s <= 12) { leftMatrix.appendChild(btn); } else { rightMatrix.appendChild(btn); }
             }
         }
 
-        // 大表格鎖定切換
         function toggleTableLock() {
             isTableLocked = !isTableLocked;
             const btn = document.getElementById('btnTableLock');
-            if (isTableLocked) {
-                btn.textContent = "🔓 解鎖表格 (顯示全班)";
-                btn.classList.add('locked');
-            } else {
-                btn.textContent = "🔒 鎖定表格 (隱藏完成)";
-                btn.classList.remove('locked');
-            }
+            btn.textContent = isTableLocked ? "🔓 解鎖表格 (顯示全班)" : "🔒 鎖定表格 (隱藏完成)";
+            if (isTableLocked) btn.classList.add('locked'); else btn.classList.remove('locked');
             renderExamTable();
         }
 
+        // 🧠 核心邏輯升級：跨日連鎖追債 ＋ 舊卡自動下架 ＋ 狀態升級公式
         function createNewCard() {
             if (!isTeacher) return;
             const select = document.getElementById('taskSelect');
             const customInput = document.getElementById('customInput');
             let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value;
 
-            if (!pureTaskName) { alert("請先選擇或輸入作業名稱喔！"); return; }
+            if (!pureTaskName) { alert("大熊老師，請先選擇作業名稱喔！"); return; }
+            
             const today = new Date();
-            const fullTitle = `${pureTaskName} ${today.getMonth() + 1}/${today.getDate()}`;
+            const dateStr = `${today.getMonth() + 1}/${today.getDate()}`;
+            const newFullTitle = `${pureTaskName} ${dateStr}`;
 
-            if (activeCardsData.some(c => c.fullTitle === fullTitle)) { alert("今天已有此作業項目囉！"); return; }
+            if (activeCardsData.some(c => c.fullTitle === newFullTitle)) { alert(`🚨 防呆：今天已有「${newFullTitle}」囉！`); return; }
 
-            let inheritedStatus = Array(totalStudents + 1).fill(0); 
-            activeCardsData.push({ fullTitle: fullTitle, pureName: pureTaskName, statusArray: inheritedStatus, isLocked: false });
+            // 初始化新一天的名單 (預設全班綠色)
+            let advancedStatus = Array(totalStudents + 1).fill(0); 
+
+            // 🧠 歷史追債大腦：抓取該作業「最後一次沒交」的名單
+            let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
+            if (oldCard) {
+                // 自動繼承並進化等級
+                for (let s = 1; s <= totalStudents; s++) {
+                    let oldStatus = oldCard.statusArray[s] || 0;
+                    if (oldStatus === 1) {
+                        advancedStatus[s] = 2; // 昨天欠1次(橘) ➜ 今天變累積遲交(紅)
+                    } else if (oldStatus === 2 || oldStatus === 3) {
+                        advancedStatus[s] = 3; // 昨天紅或紫 ➜ 今天直接鎖定為終極大釘子戶(紫)
+                    }
+                }
+                
+                // 🧹 自動秒速下架昨天的舊卡片
+                activeCardsData = activeCardsData.filter(c => c.fullTitle !== oldCard.fullTitle);
+                pushToCloud({ action: "delete", fullTitle: oldCard.fullTitle });
+            }
+
+            // 本機即刻長出全新的跨日進化卡片
+            activeCardsData.push({ fullTitle: newFullTitle, pureName: pureTaskName, statusArray: advancedStatus, isLocked: false });
             renderBoard();
-            pushToCloud({ action: "saveOrUpdate", fullTitle: fullTitle, pureName: pureTaskName, statusArray: inheritedStatus, isLocked: false });
+            
+            // 同步雲端
+            pushToCloud({ action: "saveOrUpdate", fullTitle: newFullTitle, pureName: pureTaskName, statusArray: advancedStatus, isLocked: false });
 
             select.value = ""; customInput.value = ""; customInput.style.display = "none";
         }
@@ -581,18 +571,14 @@
             if (!isTeacher) return;
             const subject = document.getElementById('examSubject').value;
             const unit = document.getElementById('examUnitInput').value.trim();
-
             if (!unit) { alert("請填寫單元名稱！"); return; }
             const fullExamName = `${subject}-${unit}`;
 
             if (examRecordsData.some(e => e.examName === fullExamName)) { alert("已有此考試項目！"); return; }
-
             const initialStatus = Array(totalStudents + 1).fill(0);
             examRecordsData.push({ examName: fullExamName, statusArray: initialStatus });
             
-            updateExamSelectOptions(fullExamName);
-            renderExamTable();
-
+            updateExamSelectOptions(fullExamName); renderExamTable();
             pushToCloud({ action: "saveExam", examName: fullExamName, statusArray: initialStatus });
             document.getElementById('examUnitInput').value = "";
         }
@@ -602,8 +588,7 @@
             if (!activeExamName) return;
             if (confirm(`確定要徹底刪除「${activeExamName}」這欄考試項目嗎？`)) {
                 examRecordsData = examRecordsData.filter(e => e.examName !== activeExamName);
-                updateExamSelectOptions("");
-                renderExamTable();
+                updateExamSelectOptions(""); renderExamTable();
                 pushToCloud({ action: "deleteExam", examName: activeExamName });
             }
         }
@@ -623,8 +608,7 @@
         }
 
         function searchStudentMissing() {
-            const inputEl = document.getElementById('searchNo');
-            const seatNo = parseInt(inputEl.value);
+            const inputEl = document.getElementById('searchNo'); const seatNo = parseInt(inputEl.value);
             if (isNaN(seatNo) || seatNo < 1 || seatNo > totalStudents) { alert("請輸入正確座號（1 ~ 24）"); return; }
 
             let dailyMissing = []; let examMissing = [];
@@ -647,8 +631,7 @@
         }
 
         function toggleCustomInput() {
-            const select = document.getElementById('taskSelect');
-            const customInput = document.getElementById('customInput');
+            const select = document.getElementById('taskSelect'); const customInput = document.getElementById('customInput');
             customInput.style.display = (select.value === "CUSTOM") ? "inline-block" : "none";
             if (select.value === "CUSTOM") customInput.focus();
         }
