@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族即時親師數位看板 8.5 實戰修羅版</title>
+    <title>NICE家族即時親師數位看板 8.8 終極完全體</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -15,16 +15,15 @@
             --level-2: #e63946; 
             --level-3: #7209b7; 
             
-            /* 科目直覺反射配色（低飽和質感，不傷眼睛） */
-            --subject-chinese: #4cc9f0;  /* 語文類：溫柔文青藍 */
-            --subject-math: #2a9d8f;     /* 數學類：活力翡翠綠 */
-            --subject-exam: #a14bf6;     /* 考試類：神祕科技紫 */
-            --subject-custom: #fccc52;   /* 客製類：經典亮黃色 */
+            --subject-chinese: #4cc9f0;  
+            --subject-math: #2a9d8f;     
+            --subject-exam: #a14bf6;     
+            --subject-custom: #fccc52;   
         }
 
         html, body {
             background-color: var(--bg-color);
-            background-image: url('bg.jpg'); /* 自動嵌入老師上傳的 LOGO 背景 */
+            background-image: url('bg.jpg'); 
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -39,27 +38,28 @@
             padding: 15px;
             font-size: 0.95rem;
             user-select: none;
-            background-color: rgba(30, 30, 36, 0.88); /* 讓背景 LOGO 完美墊底不搶主視覺 */
+            background-color: rgba(30, 30, 36, 0.88); 
             background-blend-mode: multiply;
         }
 
-        .title-area { position: relative; max-width: 1200px; margin: 0 auto; text-align: center; }
-        h1 { font-size: 2rem; color: #4cc9f0; margin-bottom: 5px; text-shadow: 0 0 10px rgba(76, 201, 240, 0.3); }
-        .subtitle { color: var(--text-sub); margin-bottom: 20px; font-size: 0.9rem; }
+        .title-area { max-width: 1200px; margin: 0 auto; text-align: center; padding-top: 10px; position: relative; }
+        h1 { font-size: 2.2rem; color: #4cc9f0; margin: 0 0 8px 0; text-shadow: 0 0 10px rgba(76, 201, 240, 0.3); }
+        .subtitle { color: var(--text-sub); margin-bottom: 15px; font-size: 0.95rem; font-weight: bold; }
 
-        .mode-tabs { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        /* 🆕 頂端右側只保留極簡的「個人座號查詢」，絕不擋到標題 */
+        .top-search-zone { position: absolute; right: 10px; top: 15px; background: #3b3b4f; padding: 6px 10px; border-radius: 8px; display: flex; gap: 8px; align-items: center; border: 1px solid #4cc9f0; }
+        .search-input { width: 60px; padding: 5px; font-size: 0.9rem; border-radius: 5px; border: none; text-align: center; font-weight: bold; }
+        .btn-search { background-color: #4cc9f0; color: #1e1e24; border: none; padding: 5px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
+
+        .mode-tabs { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
         .tab-btn { padding: 10px 22px; font-size: 1.05rem; font-weight: bold; border: none; border-radius: 30px; cursor: pointer; transition: 0.3s; background-color: #3b3b4f; color: #b3b3cc; }
         .tab-btn.active { background-color: #4cc9f0; color: #1e1e24; box-shadow: 0 0 15px rgba(76, 201, 240, 0.5); }
 
-        .top-tools { position: absolute; right: 10px; top: 15px; display: flex; gap: 10px; align-items: center; }
-        .btn-clear-all { background-color: #e63946; color: white; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9rem; display: none; }
-        .parent-search-box { background: #3b3b4f; padding: 8px 12px; border-radius: 8px; display: flex; gap: 8px; align-items: center; border: 1px solid #4cc9f0; }
-        .search-input { width: 90px; padding: 6px; font-size: 0.9rem; border-radius: 5px; border: none; text-align: center; font-weight: bold; }
-        .btn-search { background-color: #4cc9f0; color: #1e1e24; border: none; padding: 6px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
-        
-        /* 🆕 兩大超級按鈕：同步、一鍵匯出總表 */
-        .btn-sync-cloud { background-color: #2a9d8f; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; display: none; box-shadow: 0 0 10px rgba(42,157,143,0.4); }
+        /* 管理員專屬整合按鈕列（藏在控制台裡，排版超乾淨） */
+        .teacher-tools-row { width: 100%; display: flex; justify-content: center; gap: 12px; margin-top: 12px; border-top: 1px dashed #4e4e62; padding-top: 12px; }
+        .btn-sync-cloud { background-color: #2a9d8f; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; box-shadow: 0 0 10px rgba(42,157,143,0.4); }
         .btn-export-all { background-color: #fccc52; color: #1e1e24; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; box-shadow: 0 0 10px rgba(252,204,82,0.4); }
+        .btn-clear-all { background-color: #e63946; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
 
         /* 控制台 */
         .control-panel { background: #252530; padding: 15px; border-radius: 12px; max-width: 850px; margin: 0 auto 25px auto; display: none; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; border: 1px solid #3e3e50; }
@@ -69,16 +69,14 @@
         .btn-add { background-color: #4cc9f0; color: #1e1e24; cursor: pointer; transition: all 0.2s; font-weight: bold; }
 
         /* 畫布網格 */
-        .board-canvas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; padding-bottom: 80px; }
+        .board-canvas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; padding-bottom: 40px; }
         
-        /* 💥 卡片與直覺科目配色大腦 */
+        /* 卡片設計 */
         .homework-card { background: var(--card-bg); border-radius: 14px; padding: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); border: 2px solid #3e3e50; position: relative; transition: all 0.4s ease; }
         .homework-card.fade-out { transform: scale(0.8) translateY(-40px); opacity: 0; }
-        
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px dashed #4e4e62; padding-bottom: 8px; }
         .card-title { font-size: 1.15rem; font-weight: bold; color: var(--subject-custom); }
         
-        /* 科目專屬色彩（看一眼標題直接反射！） */
         .card-chinese .card-title { color: var(--subject-chinese); }
         .card-math .card-title { color: var(--subject-math); }
         .card-exam .card-title { color: var(--subject-exam); }
@@ -96,12 +94,12 @@
         .student-node.status-1 { background-color: var(--level-1); color: #1e1e24; }
         .student-node.status-2 { background-color: var(--level-2); font-size: 1.2rem; box-shadow: 0 0 8px rgba(230, 57, 70, 0.5); }
         
-        /* 🔮 終極大釘子戶：霓虹圓形閃爍特效（排版絕對不歪！） */
+        /* 🔮 紫色圓形霓虹閃爍大釘子戶 */
         .student-node.status-3 { 
             background-color: var(--level-3); 
             font-size: 1.25rem; 
-            border-radius: 50% !important; /* 變圓形！ */
-            animation: neon-shining 0.6s infinite alternate; /* 瘋狂閃爍 */
+            border-radius: 50% !important; 
+            animation: neon-shining 0.6s infinite alternate; 
         }
 
         @keyframes neon-shining { 
@@ -112,7 +110,7 @@
         .exploding { animation: explode-effect 0.4s ease-out !important; }
 
         /* 相簿 */
-        .photo-gallery-container { max-width: 1000px; margin: 0 auto; display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; padding-bottom: 80px; }
+        .photo-gallery-container { max-width: 1000px; margin: 0 auto; display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; padding-bottom: 40px; }
         .photo-album-card { background: #252530; border-radius: 14px; border: 2px solid #3e3e50; overflow: hidden; box-shadow: 0 8px 15px rgba(0,0,0,0.2); transition: all 0.3s; text-decoration: none; color: white; display: flex; flex-direction: column; position: relative; }
         .photo-album-card:hover { transform: translateY(-5px); border-color: #4cc9f0; box-shadow: 0 12px 25px rgba(76,201,240,0.3); }
         .album-icon-zone { background: #313143; height: 130px; display: flex; justify-content: center; align-items: center; font-size: 4rem; }
@@ -121,7 +119,19 @@
         .album-desc { font-size: 0.85rem; color: var(--text-sub); margin-bottom: 12px; }
         .album-action-hint { font-size: 0.9rem; color: #fccc52; font-weight: bold; text-align: right; }
         .btn-del-photo { position: absolute; top: 10px; right: 10px; background: rgba(230,57,70,0.8); color: white; border: none; border-radius: 50%; width: 30px; height: 30px; font-weight: bold; cursor: pointer; display: none; z-index: 10; }
-        .teacher-mode .btn-del-photo { display: block; }
+        .teacher-mode .btn-del-photo { block; }
+
+        /* 🆕 🥊 閉嘴債務總覽牆（大螢幕實體物理防禦區） */
+        .shut-up-wall { max-width: 1200px; margin: 30px auto 80px auto; background: rgba(37, 37, 48, 0.95); border: 3px dashed #ef4444; border-radius: 16px; padding: 20px; box-shadow: 0 10px 30px rgba(239, 68, 68, 0.2); display: none; }
+        .wall-title { font-size: 1.4rem; color: #ef4444; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #ef4444; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+        .wall-student-box { background: #1e1e24; border: 1px solid #3e3e50; border-radius: 8px; padding: 10px; min-height: 60px; }
+        .wall-student-box.has-debt { border-color: #f4a261; background: #2d2327; }
+        .wall-student-box.clean { border-color: #2a9d8f; background: #1a2926; opacity: 0.5; }
+        .wall-no { font-weight: bold; font-size: 1.1rem; border-bottom: 1px solid #4e4e62; padding-bottom: 3px; margin-bottom: 5px; }
+        .wall-no.is-clean { color: #2a9d8f; }
+        .wall-no.is-debt { color: #f4a261; }
+        .wall-debt-item { font-size: 0.85rem; margin: 2px 0; color: #b3b3cc; }
 
         .loading-hint { text-align: center; font-size: 1.3rem; color: #fccc52; margin: 20px; }
     </style>
@@ -129,17 +139,12 @@
 <body>
 
     <div class="title-area">
-        <h1>📋 NICE家族即時親師數位看板 8.5</h1>
+        <h1>📋 NICE家族即時親師數位看板</h1>
         <div class="subtitle" id="viewModeHint">正在連線至雲端即時同步資料庫...</div>
         
-        <div class="top-tools">
-            <button class="btn-sync-cloud" id="syncCloudBtn" onclick="fetchCloudData(true)">💾 同步並強制檢查</button>
-            <button class="btn-export-all" onclick="exportDebtReport()">📊 複製未交總表</button>
-            <div class="parent-search-box" id="searchBoxZone">
-                <input type="number" class="search-input" id="searchNo" placeholder="座號" min="1" max="24">
-                <button class="btn-search" onclick="searchStudentMissing()">🔍 查缺交</button>
-            </div>
-            <button class="btn-clear-all" id="clearAllBtn" onclick="triggerClear()">🧹 清空日常作業</button>
+        <div class="top-search-zone">
+            <input type="number" class="search-input" id="searchNo" placeholder="座號" min="1" max="24">
+            <button class="btn-search" onclick="searchStudentMissing()">🔍 查缺交</button>
         </div>
     </div>
 
@@ -149,7 +154,6 @@
         <button class="tab-btn" id="tabPhotos" onclick="switchMode('photos')">📸 NICE家族生活剪影</button>
     </div>
 
-    <!-- 控制台 A：日常作業 -->
     <div class="control-panel" id="controlPanelDaily">
         <select class="select-style" id="taskSelect" onchange="toggleCustomInput()">
             <option value="">-- 請選擇日常作業 --</option>
@@ -158,18 +162,28 @@
         </select>
         <input type="text" class="input-style" id="customInput" placeholder="請打上新作業名稱" style="display:none;">
         <button class="btn-add" onclick="createNewCard()">＋ 掛上登記板</button>
+        
+        <div class="teacher-tools-row">
+            <button class="btn-sync-cloud" onclick="fetchCloudData(true)">💾 同步並強制檢查</button>
+            <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
+            <button class="btn-clear-all" id="clearAllBtn" onclick="triggerClear()">🧹 清空日常作業</button>
+        </div>
     </div>
 
-    <!-- 控制台 B：學期考試 -->
     <div class="control-panel" id="controlPanelExam">
         <select class="select-style" id="examSubject">
             <option value="國語">國語</option><option value="數學">數學</option><option value="社會">社會</option><option value="自然">自然</option><option value="其他">其他</option>
         </select>
         <input type="text" class="input-style" id="examUnitInput" placeholder="單元 (例如: 第一單元)">
         <button class="btn-add" onclick="addNewExamCard()">＋ 掛上考試卡片</button>
+        
+        <div class="teacher-tools-row">
+            <button class="btn-sync-cloud" onclick="fetchCloudData(true)">💾 同步並強制檢查</button>
+            <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
+            <button class="btn-clear-all" id="clearAllBtnExam" onclick="triggerClear()">🧹 清空學期考試</button>
+        </div>
     </div>
 
-    <!-- 控制台 C：生活相簿網頁直加（大熊老師專用！） -->
     <div class="control-panel" id="controlPanelPhotos">
         <select class="select-style" id="photoIconSelect">
             <option value="🎒">🎒 學校生活</option><option value="🏐">🏐 體育球賽</option><option value="👣">👣 戶外健行</option><option value="🌟">🌟 精采表演</option><option value="🎨">🎨 美術創作</option><option value="📸">📸 其他隨拍</option>
@@ -182,13 +196,19 @@
 
     <div class="loading-hint" id="loadingHint">⏳ 雲端資料同步中，請稍候...</div>
     
-    <!-- 三大區塊看板（考試全面卡片化） -->
     <div class="board-canvas" id="boardCanvas"></div>
     <div class="board-canvas" id="examCanvas" style="display:none;"></div>
     <div class="photo-gallery-container" id="photoGalleryContainer"></div>
 
+    <div class="shut-up-wall" id="shutUpWall">
+        <div class="wall-title">
+            <span>🥊 NICE家族 欠交/補考 閉嘴牆 (全班大對決)</span>
+            <button style="background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:5px; cursor:pointer; font-weight:bold;" onclick="document.getElementById('shutUpWall').style.display='none'">× 關閉閉嘴牆</button>
+        </div>
+        <div class="wall-grid" id="wallGrid"></div>
+    </div>
+
     <script>
-        // ⚠️ 記得放上大熊老師專屬的 Apps Script 部署網址
         const cloudUrl = "https://script.google.com/macros/s/AKfycby60_GyNszlRXQyrJSgvi_zxx4G9swTuDj_jUQeLABa68kwz1R6ag9dWRQHyaW-S2sE/exec";
         const totalStudents = 24;
         let activeCardsData = []; let examRecordsData = []; let photoRecordsData = [];
@@ -198,8 +218,6 @@
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('mode') === 'teacher') {
                 isTeacher = true; updateControlPanelVisibility();
-                document.getElementById('clearAllBtn').style.display = 'block';
-                document.getElementById('syncCloudBtn').style.display = 'block';
                 document.getElementById('viewModeHint').textContent = '🔒 大熊老師管理模式（按【同步】按鈕融合雙向進度）';
                 document.body.classList.add('teacher-mode');
             } else {
@@ -212,21 +230,15 @@
         function switchMode(mode) {
             currentMode = mode;
             document.getElementById('tabDaily').classList.remove('active'); document.getElementById('tabExam').classList.remove('active'); document.getElementById('tabPhotos').classList.remove('active');
-            const clearBtn = document.getElementById('clearAllBtn'); const searchBox = document.getElementById('searchBoxZone');
-            
             document.getElementById('boardCanvas').style.display = 'none'; document.getElementById('examCanvas').style.display = 'none'; document.getElementById('photoGalleryContainer').style.display = 'none';
 
             if (mode === 'daily') {
                 document.getElementById('tabDaily').classList.add('active'); document.getElementById('boardCanvas').style.display = 'grid';
-                searchBox.style.display = 'flex'; clearBtn.style.display = isTeacher ? 'block' : 'none';
-                clearBtn.textContent = "🧹 清空日常作業"; clearBtn.style.backgroundColor = "#e63946";
             } else if (mode === 'exam') {
                 document.getElementById('tabExam').classList.add('active'); document.getElementById('examCanvas').style.display = 'grid';
-                searchBox.style.display = 'flex'; clearBtn.style.display = isTeacher ? 'block' : 'none';
-                clearBtn.textContent = "🧹 清空學期考試"; clearBtn.style.backgroundColor = "#7209b7";
             } else if (mode === 'photos') {
                 document.getElementById('tabPhotos').classList.add('active'); document.getElementById('photoGalleryContainer').style.display = 'grid';
-                searchBox.style.display = 'none'; clearBtn.style.display = 'none';
+                document.getElementById('shutUpWall').style.display = 'none'; 
             }
             updateControlPanelVisibility();
         }
@@ -238,7 +250,6 @@
             document.getElementById('controlPanelPhotos').style.display = (currentMode === 'photos') ? 'flex' : 'none';
         }
 
-        // 🧠 強制雙向同步大腦：絕不蓋檔
         function fetchCloudData(isManualSync) {
             if(isManualSync) document.getElementById('loadingHint').style.display = 'block';
             fetch(cloudUrl).then(res => res.json()).then(data => {
@@ -247,13 +258,13 @@
                 examRecordsData = data.exam || [];
                 photoRecordsData = data.photos || [];
                 renderBoard(); renderExamBoard(); renderPhotoGallery();
+                if(document.getElementById('shutUpWall').style.display === 'block') { buildShutUpWall(); } // 如果閉嘴牆開著，順便一起更新
                 if(isManualSync) alert("🔄 雲端同步成功！已為您融合台上、台下的最新點擊狀態！");
             }).catch(err => { document.getElementById('loadingHint').innerHTML = "⚠️ 雲端同步失敗，請檢查網路。"; });
         }
 
         function pushToCloud(payload) { fetch(cloudUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }); }
 
-        // 判定卡片科目專屬色彩大腦（藍/綠反射）
         function getSubjectClass(title) {
             if (title.includes("國") || title.includes("字") || title.includes("聽") || title.includes("圈") || title.includes("默") || title.includes("預")) return "card-chinese";
             if (title.includes("數")) return "card-math";
@@ -328,44 +339,39 @@
             });
         }
 
-        //  ✨ 新的程式碼：不管是誰看，考試卡片「預設一律開啟鎖定」，只顯示未過關的釘子戶！
-// 🛠️ 8.7 考試卡片完備修正版：家長看自動隱形，大熊老師看可自由點擊！
-function renderExamBoard() {
-    const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
-    examRecordsData.forEach((examData, idx) => {
-        const card = document.createElement('div'); card.className = 'homework-card exam-card'; card.id = `card_exam_${examData.examName}`;
-        
-        // 🎯 關鍵防護：如果不是大熊老師（一般家長/學生看），才強制隱藏綠色過關球
-        if (!isTeacher) {
-            card.classList.add('hide-green-mode');
+        function renderExamBoard() {
+            const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
+            examRecordsData.forEach((examData, idx) => {
+                const card = document.createElement('div'); card.className = 'homework-card exam-card'; card.id = `card_exam_${examData.examName}`;
+                if (!isTeacher) { card.classList.add('hide-green-mode'); }
+
+                const header = document.createElement('div'); header.className = 'card-header';
+                const title = document.createElement('div'); title.className = 'card-title'; title.textContent = `📝 ${examData.examName}`;
+                const actions = document.createElement('div'); actions.className = 'header-actions';
+
+                const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
+                delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」卡片嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.examName }); } };
+
+                actions.appendChild(delBtn); header.appendChild(title); header.appendChild(actions); card.appendChild(header);
+                const matrix = document.createElement('div'); matrix.className = 'student-matrix';
+                for (let s = 1; s <= totalStudents; s++) {
+                    const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = String(s).padStart(2, '0');
+                    const currentStatus = examData.statusArray[s] || 0; btn.dataset.status = currentStatus; if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
+                    bindNodeEvents(btn, s, 'exam', examData.examName); matrix.appendChild(btn);
+                }
+                card.appendChild(matrix); canvas.appendChild(card);
+            });
         }
-
-        const header = document.createElement('div'); header.className = 'card-header';
-        const title = document.createElement('div'); title.className = 'card-title'; title.textContent = `📝 ${examData.examName}`;
-        const actions = document.createElement('div'); actions.className = 'header-actions';
-
-        const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
-        delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」卡片嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.examName }); } };
-
-        actions.appendChild(delBtn); header.appendChild(title); header.appendChild(actions); card.appendChild(header);
-        const matrix = document.createElement('div'); matrix.className = 'student-matrix';
-        for (let s = 1; s <= totalStudents; s++) {
-            const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = String(s).padStart(2, '0');
-            const currentStatus = examData.statusArray[s] || 0; btn.dataset.status = currentStatus; if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
-            bindNodeEvents(btn, s, 'exam', examData.examName); matrix.appendChild(btn);
-        }
-        card.appendChild(matrix); canvas.appendChild(card);
-    });
-}
 
         function renderPhotoGallery() {
             const container = document.getElementById('photoGalleryContainer'); container.innerHTML = "";
+            // 📸 .slice().reverse() 完美實現最新相簿在最前面！
             photoRecordsData.slice().reverse().forEach(p => {
                 const card = document.createElement('div'); card.className = 'photo-album-card';
                 const delBtn = document.createElement('button'); delBtn.className = 'btn-del-photo'; delBtn.textContent = '×';
                 delBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); if(confirm(`確定刪除「${p.name}」相簿？`)) { pushToCloud({ action: "deletePhoto", name: p.name }); setTimeout(fetchCloudData, 800); } };
                 
-                const a = document.createElement('a'); a.href = p.url; a.target = "_blank"; style = "text-decoration:none; color:white;";
+                const a = document.createElement('a'); a.href = p.url; a.target = "_blank";
                 a.innerHTML = `<div class="album-icon-zone">${p.icon}</div>
                                <div class="album-info-zone">
                                    <div><div class="album-name">${p.name}</div><div class="album-desc">${p.desc}</div></div>
@@ -400,7 +406,33 @@ function renderExamBoard() {
             document.getElementById('photoUrlInput').value = ""; document.getElementById('photoNameInput').value = ""; document.getElementById('photoDescInput').value = "";
         }
 
-        // 📊 核心：一鍵匯出全班未交總表（再也不用被小孩包圍！）
+        // 🥊 建立/更新實體閉嘴牆的大腦
+        function buildShutUpWall() {
+            const grid = document.getElementById('wallGrid'); grid.innerHTML = "";
+            
+            for (let s = 1; s <= totalStudents; s++) {
+                let dList = []; let eList = [];
+                activeCardsData.forEach(c => { if ((c.statusArray[s] || 0) > 0) dList.push(c.fullTitle); });
+                examRecordsData.forEach(e => { if ((e.statusArray[s] || 0) > 0) eList.push(e.examName); });
+
+                const box = document.createElement('div');
+                box.className = 'wall-student-box';
+
+                if (dList.length === 0 && eList.length === 0) {
+                    box.classList.add('clean');
+                    box.innerHTML = `<div class="wall-no is-clean">😇 ${String(s).padStart(2,'0')}號</div><div style="color:#2a9d8f; font-size:0.85rem; font-weight:bold;">✨ 全數通關！</div>`;
+                } else {
+                    box.classList.add('has-debt');
+                    let html = `<div class="wall-no is-debt">👤 ${String(s).padStart(2,'0')}號</div>`;
+                    dList.forEach(i => html += `<div class="wall-debt-item">📁 ${i}</div>`);
+                    eList.forEach(i => html += `<div class="wall-debt-item">📝 ${i}</div>`);
+                    box.innerHTML = html;
+                }
+                grid.appendChild(box);
+            }
+        }
+
+        // 📊 一鍵產出總表＋同時召喚「物理防禦閉嘴牆」！
         function exportDebtReport() {
             let reportMap = {};
             for (let s = 1; s <= totalStudents; s++) { reportMap[s] = { daily: [], exam: [] }; }
@@ -420,32 +452,35 @@ function renderExamBoard() {
                 if (reportMap[s].exam.length > 0) finalStr += `  📝 補考 -> ${reportMap[s].exam.join('、')}\n`;
                 finalStr += `\n`;
             }
-
             finalStr += `-------------------------\n🎉 目前共有 ${cleanCount} 位優秀天使全數過關！`;
             
-            // 複製到剪貼簿並彈窗通知
-            navigator.clipboard.writeText(finalStr).then(() => {
-                alert("📊 全班債務總報告已成功複製到您的剪貼簿！\n您可以直接去 LINE 群組貼上，或是由小幫手抄去黑板喔！");
-            });
+            navigator.clipboard.writeText(finalStr);
+
+            // 🎯 核心震撼：在網頁最下方直接展開「閉嘴總覽牆」！
+            buildShutUpWall();
+            document.getElementById('shutUpWall').style.display = 'block';
+            
+            // 畫面自動平滑捲動到最下方的閉嘴牆，讓學生自己看
+            document.getElementById('shutUpWall').scrollIntoView({ behavior: 'smooth' });
         }
 
         function checkCardCompletion(idx, type) {
             if (type === 'daily') {
                 const card = activeCardsData[idx]; if (!card) return;
                 if (card.statusArray.slice(1, totalStudents + 1).every(s => s === 0)) {
-                    const el = document.getElementById(`card_daily_${card.fullTitle}`); if (el) { el.classList.add('fade-out'); setTimeout(() => { el.remove(); activeCardsData = activeCardsData.filter(c => c.fullTitle !== card.fullTitle); pushToCloud({ action: "delete", fullTitle: card.fullTitle }); }, 400); }
+                    const el = document.getElementById(`card_daily_${card.fullTitle}`); if (el) { el.classList.add('fade-out'); setTimeout(() => { el.remove(); activeCardsData = activeCardsData.filter(c => c.fullTitle !== card.fullTitle); pushToCloud({ action: "delete", fullTitle: card.fullTitle }); if(document.getElementById('shutUpWall').style.display === 'block') buildShutUpWall(); }, 400); }
                 }
             } else {
                 const exam = examRecordsData[idx]; if (!exam) return;
                 if (exam.statusArray.slice(1, totalStudents + 1).every(s => s === 0)) {
-                    const el = document.getElementById(`card_exam_${exam.examName}`); if (el) { el.classList.add('fade-out'); setTimeout(() => { el.remove(); examRecordsData = examRecordsData.filter(e => e.examName !== exam.examName); pushToCloud({ action: "deleteExam", examName: exam.examName }); }, 400); }
+                    const el = document.getElementById(`card_exam_${exam.examName}`); if (el) { el.classList.add('fade-out'); setTimeout(() => { el.remove(); examRecordsData = examRecordsData.filter(e => e.examName !== exam.examName); pushToCloud({ action: "deleteExam", examName: exam.examName }); if(document.getElementById('shutUpWall').style.display === 'block') buildShutUpWall(); }, 400); }
                 }
             }
         }
 
         function triggerClear() {
-            if (currentMode === 'daily') { if(confirm("確定清空日常作業？")) { document.getElementById('boardCanvas').innerHTML = ""; activeCardsData = []; pushToCloud({ action: "clearDaily" }); } }
-            else { if(confirm("確定清空學期所有考試？")) { document.getElementById('examCanvas').innerHTML = ""; examRecordsData = []; pushToCloud({ action: "clearExam" }); } }
+            if (currentMode === 'daily') { if(confirm("確定清空日常作業？")) { document.getElementById('boardCanvas').innerHTML = ""; activeCardsData = []; pushToCloud({ action: "clearDaily" }); document.getElementById('shutUpWall').style.display = 'none'; } }
+            else { if(confirm("確定清空學期所有考試？")) { document.getElementById('examCanvas').innerHTML = ""; examRecordsData = []; pushToCloud({ action: "clearExam" }); document.getElementById('shutUpWall').style.display = 'none'; } }
         }
 
         function searchStudentMissing() {
