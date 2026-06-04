@@ -354,7 +354,7 @@
 
         function renderPhotoGallery() {
             const container = document.getElementById('photoGalleryContainer'); container.innerHTML = "";
-            photoRecordsData.forEach(p => {
+            photoRecordsData.slice().reverse().forEach(p => {
                 const card = document.createElement('div'); card.className = 'photo-album-card';
                 const delBtn = document.createElement('button'); delBtn.className = 'btn-del-photo'; delBtn.textContent = '×';
                 delBtn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); if(confirm(`確定刪除「${p.name}」相簿？`)) { pushToCloud({ action: "deletePhoto", name: p.name }); setTimeout(fetchCloudData, 800); } };
