@@ -329,31 +329,34 @@
         }
 
         //  ✨ 新的程式碼：不管是誰看，考試卡片「預設一律開啟鎖定」，只顯示未過關的釘子戶！
+// 🛠️ 8.7 考試卡片完備修正版：家長看自動隱形，大熊老師看可自由點擊！
 function renderExamBoard() {
     const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
     examRecordsData.forEach((examData, idx) => {
         const card = document.createElement('div'); card.className = 'homework-card exam-card'; card.id = `card_exam_${examData.examName}`;
         
-        // 🎯 換成這行！這樣家長和學生一進來，綠色球會自動隱形，畫面瞬間清爽，一眼秒看誰沒補考！
-        card.classList.add('hide-green-mode');
-
-                const header = document.createElement('div'); header.className = 'card-header';
-                const title = document.createElement('div'); title.className = 'card-title'; title.textContent = `📝 ${examData.examName}`;
-                const actions = document.createElement('div'); actions.className = 'header-actions';
-
-                const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
-                delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」卡片嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.examName }); } };
-
-                actions.appendChild(delBtn); header.appendChild(title); header.appendChild(actions); card.appendChild(header);
-                const matrix = document.createElement('div'); matrix.className = 'student-matrix';
-                for (let s = 1; s <= totalStudents; s++) {
-                    const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = String(s).padStart(2, '0');
-                    const currentStatus = examData.statusArray[s] || 0; btn.dataset.status = currentStatus; if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
-                    bindNodeEvents(btn, s, 'exam', examData.examName); matrix.appendChild(btn);
-                }
-                card.appendChild(matrix); canvas.appendChild(card);
-            });
+        // 🎯 關鍵防護：如果不是大熊老師（一般家長/學生看），才強制隱藏綠色過關球
+        if (!isTeacher) {
+            card.classList.add('hide-green-mode');
         }
+
+        const header = document.createElement('div'); header.className = 'card-header';
+        const title = document.createElement('div'); title.className = 'card-title'; title.textContent = `📝 ${examData.examName}`;
+        const actions = document.createElement('div'); actions.className = 'header-actions';
+
+        const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
+        delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」卡片嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.examName }); } };
+
+        actions.appendChild(delBtn); header.appendChild(title); header.appendChild(actions); card.appendChild(header);
+        const matrix = document.createElement('div'); matrix.className = 'student-matrix';
+        for (let s = 1; s <= totalStudents; s++) {
+            const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = String(s).padStart(2, '0');
+            const currentStatus = examData.statusArray[s] || 0; btn.dataset.status = currentStatus; if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
+            bindNodeEvents(btn, s, 'exam', examData.examName); matrix.appendChild(btn);
+        }
+        card.appendChild(matrix); canvas.appendChild(card);
+    });
+}
 
         function renderPhotoGallery() {
             const container = document.getElementById('photoGalleryContainer'); container.innerHTML = "";
