@@ -328,11 +328,14 @@
             });
         }
 
-        function renderExamBoard() {
-            const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
-            examRecordsData.forEach((examData, idx) => {
-                const card = document.createElement('div'); card.className = 'homework-card exam-card'; card.id = `card_exam_${examData.examName}`;
-                if (!isTeacher) card.classList.add('hide-green-mode');
+        //  ✨ 新的程式碼：不管是誰看，考試卡片「預設一律開啟鎖定」，只顯示未過關的釘子戶！
+function renderExamBoard() {
+    const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
+    examRecordsData.forEach((examData, idx) => {
+        const card = document.createElement('div'); card.className = 'homework-card exam-card'; card.id = `card_exam_${examData.examName}`;
+        
+        // 🎯 換成這行！這樣家長和學生一進來，綠色球會自動隱形，畫面瞬間清爽，一眼秒看誰沒補考！
+        card.classList.add('hide-green-mode');
 
                 const header = document.createElement('div'); header.className = 'card-header';
                 const title = document.createElement('div'); title.className = 'card-title'; title.textContent = `📝 ${examData.examName}`;
