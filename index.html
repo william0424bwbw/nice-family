@@ -250,18 +250,30 @@
             document.getElementById('controlPanelPhotos').style.display = (currentMode === 'photos') ? 'flex' : 'none';
         }
 
-        function fetchCloudData(isManualSync) {
-            if(isManualSync) document.getElementById('loadingHint').style.display = 'block';
-            fetch(cloudUrl).then(res => res.json()).then(data => {
-                document.getElementById('loadingHint').style.display = 'none';
-                activeCardsData = data.daily || [];
-                examRecordsData = data.exam || [];
-                photoRecordsData = data.photos || [];
-                renderBoard(); renderExamBoard(); renderPhotoGallery();
-                if(document.getElementById('shutUpWall').style.display === 'block') { buildShutUpWall(); } // 如果閉嘴牆開著，順便一起更新
-                if(isManualSync) alert("🔄 雲端同步成功！已為您融合台上、台下的最新點擊狀態！");
-            }).catch(err => { document.getElementById('loadingHint').innerHTML = "⚠️ 雲端同步失敗，請檢查網路。"; });
-        }
+        // ✨ 🆕 新的讀取：完美對齊雲端的鎖定記憶，並內建超強防呆
+function fetchCloudData(isManualSync) {
+    if(isManualSync) document.getElementById('loadingHint').style.display = 'block';
+    fetch(cloudUrl).then(res => res.json()).then(data => {
+        document.getElementById('loadingHint').style.display = 'none';
+        activeCardsData = data.daily || [];
+        photoRecordsData = data.photos || [];
+        
+        // 🎯 核心修正：讀取考試資料時，確保每一條考試都拿到正確的 isLocked 狀態
+        let rawExam = data.exam || [];
+        examRecordsData = rawExam.map(e => {
+            return {
+                examName: e.examName,
+                statusArray: e.statusArray,
+                // 防呆：如果雲端傳回來的鎖定是 true 就是 true，其餘一律預設為 true（家長看時預設隱藏綠色球）
+                isLocked: e.isLocked === undefined ? true : (e.isLocked === true || e.isLocked === "true")
+            };
+        });
+        
+        renderBoard(); renderExamBoard(); renderPhotoGallery();
+        if(document.getElementById('shutUpWall').style.display === 'block') { buildShutUpWall(); }
+        if(isManualSync) alert("🔄 雲端同步成功！已為您融合台上、台下的最新點擊狀態！");
+    }).catch(err => { document.getElementById('loadingHint').innerHTML = "⚠️ 雲端同步失敗，請檢查網路。"; });
+}
 
         function pushToCloud(payload) { fetch(cloudUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }); }
 
