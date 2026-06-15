@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族即時親師數位看板 8.9.2 一鍵追債版</title>
+    <title>NICE家族即時親師數位看板 8.9.4 雙軌磁吸分流版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -42,7 +42,7 @@
             background-blend-mode: multiply;
         }
 
-        .title-area { max-width: 1200px; margin: 0 auto; text-align: center; padding-top: 10px; position: relative; }
+        .title-area { max-width: 1300px; margin: 0 auto; text-align: center; padding-top: 10px; position: relative; }
         h1 { font-size: 2.2rem; color: #4cc9f0; margin: 0 0 8px 0; text-shadow: 0 0 10px rgba(76, 201, 240, 0.3); }
         .subtitle { color: var(--text-sub); margin-bottom: 15px; font-size: 0.95rem; font-weight: bold; }
 
@@ -59,7 +59,7 @@
         .btn-export-all { background-color: #fccc52; color: #1e1e24; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; box-shadow: 0 0 10px rgba(252,204,82,0.4); }
         .btn-clear-all { background-color: #e63946; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
 
-        .control-panel { background: #252530; padding: 15px; border-radius: 12px; max-width: 850px; margin: 0 auto 25px auto; display: none; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; border: 1px solid #3e3e50; }
+        .control-panel { background: #252530; padding: 15px; border-radius: 12px; max-width: 950px; margin: 0 auto 25px auto; display: none; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: center; border: 1px solid #3e3e50; }
         .select-style, .input-style, .btn-add { padding: 10px 16px; font-size: 1rem; border-radius: 8px; border: none; outline: none; font-weight: bold; }
         .select-style { background-color: #3b3b4f; color: white; cursor: pointer; }
         .input-style { background-color: #fff; color: #333; width: 180px; }
@@ -68,9 +68,14 @@
         .check-container { display: flex; align-items: center; gap: 6px; color: #fccc52; font-weight: bold; font-size: 0.95rem; cursor: pointer; background: rgba(252,204,82,0.1); padding: 8px 12px; border-radius: 8px; border: 1px dashed #fccc52; }
         .check-container input { width: 16px; height: 16px; cursor: pointer; }
 
-        .board-canvas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; padding-bottom: 40px; }
-        
-        .homework-card { background: var(--card-bg); border-radius: 14px; padding: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); border: 2px solid #3e3e50; position: relative; transition: all 0.4s ease; }
+        /* 🆕 終極左右雙軌天網佈局 */
+        .dual-track-wrapper { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; max-width: 1400px; margin: 0 auto; padding-bottom: 40px; }
+        .track-column { display: flex; flex-direction: column; gap: 20px; background: rgba(45, 45, 58, 0.2); border-radius: 16px; padding: 15px; border: 1px dashed #3e3e50; min-height: 200px; }
+        .track-header-title { font-size: 1.2rem; font-weight: bold; padding-bottom: 8px; border-bottom: 2px solid #3e3e50; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+        .track-chinese-title { color: var(--subject-chinese); }
+        .track-math-title { color: var(--subject-math); }
+
+        .homework-card { background: var(--card-bg); border-radius: 14px; padding: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); border: 2px solid #3e3e50; position: relative; transition: all 0.4s ease; width: calc(100% - 34px); }
         .homework-card.fade-out { transform: scale(0.8) translateY(-40px); opacity: 0; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px dashed #4e4e62; padding-bottom: 8px; }
         .card-title { font-size: 1.15rem; font-weight: bold; color: var(--subject-custom); }
@@ -157,6 +162,14 @@
         </select>
         <input type="text" class="input-style" id="customInput" placeholder="請打上新作業名稱" style="display:none;">
         
+        <select class="select-style" id="cardOrderDaily" style="background:#4361ee;">
+            <option value="5">📌 優先權: 預設</option>
+            <option value="1">1️⃣ 優先權: 第 1 順位</option>
+            <option value="2">2️⃣ 優先權: 第 2 順位</option>
+            <option value="3">3️⃣ 優先權: 第 3 順位</option>
+            <option value="4">4️⃣ 優先權: 第 4 順位</option>
+        </select>
+
         <label class="check-container">
             <input type="checkbox" id="defaultDebtDaily"> 📢 預設全班未完成
         </label>
@@ -176,6 +189,14 @@
         </select>
         <input type="text" class="input-style" id="examUnitInput" placeholder="單元 (例如: 第一單元)">
         
+        <select class="select-style" id="cardOrderExam" style="background:#4361ee;">
+            <option value="5">📌 優先權: 預設</option>
+            <option value="1">1️⃣ 優先權: 第 1 順位</option>
+            <option value="2">2️⃣ 優先權: 第 2 順位</option>
+            <option value="3">3️⃣ 優先權: 第 3 順位</option>
+            <option value="4">4️⃣ 優先權: 第 4 順位</option>
+        </select>
+
         <label class="check-container">
             <input type="checkbox" id="defaultDebtExam"> 📢 預設全班未完成
         </label>
@@ -201,8 +222,25 @@
 
     <div class="loading-hint" id="loadingHint">⏳ 雲端資料同步中，請稍候...</div>
     
-    <div class="board-canvas" id="boardCanvas"></div>
-    <div class="board-canvas" id="examCanvas" style="display:none;"></div>
+    <!-- 🆕 核心改變：改用雙軌並列排版容器 -->
+    <div class="dual-track-wrapper" id="dailyTracksZone">
+        <div class="track-column" id="dailyChineseTrack">
+            <div class="track-header-title track-chinese-title">📘 語文類特區 (國語/甲乙本/聽圈默)</div>
+        </div>
+        <div class="track-column" id="dailyMathTrack">
+            <div class="track-header-title track-math-title">📐 數學與其他特區 (數習/數作/考卷)</div>
+        </div>
+    </div>
+
+    <div class="dual-track-wrapper" id="examTracksZone" style="display:none;">
+        <div class="track-column" id="examChineseTrack">
+            <div class="track-header-title track-chinese-title">📘 語文類考試 (國語考卷/聽寫)</div>
+        </div>
+        <div class="track-column" id="examMathTrack">
+            <div class="track-header-title track-math-title">📐 數學與其他考試 (單元卷/總複習)</div>
+        </div>
+    </div>
+
     <div class="photo-gallery-container" id="photoGalleryContainer"></div>
 
     <div class="shut-up-wall" id="shutUpWall">
@@ -235,12 +273,12 @@
         function switchMode(mode) {
             currentMode = mode;
             document.getElementById('tabDaily').classList.remove('active'); document.getElementById('tabExam').classList.remove('active'); document.getElementById('tabPhotos').classList.remove('active');
-            document.getElementById('boardCanvas').style.display = 'none'; document.getElementById('examCanvas').style.display = 'none'; document.getElementById('photoGalleryContainer').style.display = 'none';
+            document.getElementById('dailyTracksZone').style.display = 'none'; document.getElementById('examTracksZone').style.display = 'none'; document.getElementById('photoGalleryContainer').style.display = 'none';
 
             if (mode === 'daily') {
-                document.getElementById('tabDaily').classList.add('active'); document.getElementById('boardCanvas').style.display = 'grid';
+                document.getElementById('tabDaily').classList.add('active'); document.getElementById('dailyTracksZone').style.display = 'grid';
             } else if (mode === 'exam') {
-                document.getElementById('tabExam').classList.add('active'); document.getElementById('examCanvas').style.display = 'grid';
+                document.getElementById('tabExam').classList.add('active'); document.getElementById('examTracksZone').style.display = 'grid';
             } else if (mode === 'photos') {
                 document.getElementById('tabPhotos').classList.add('active'); document.getElementById('photoGalleryContainer').style.display = 'grid';
                 document.getElementById('shutUpWall').style.display = 'none'; 
@@ -264,11 +302,11 @@
                 
                 let rawExam = data.exam || [];
                 examRecordsData = rawExam.map(e => {
-                    return {
-                        examName: e.examName,
-                        statusArray: e.statusArray,
-                        isLocked: e.isLocked === undefined ? false : (e.isLocked === true || e.isLocked === "true")
-                    };
+                    let parsedOrder = 5; let cleanName = e.examName;
+                    if (e.examName.includes("::O")) {
+                        let parts = e.examName.split("::O"); cleanName = parts[0]; parsedOrder = parseInt(parts[1]) || 5;
+                    }
+                    return { examName: cleanName, fullRawName: e.examName, statusArray: e.statusArray, isLocked: e.isLocked === undefined ? false : (e.isLocked === true || e.isLocked === "true"), order: parsedOrder };
                 });
                 
                 renderBoard(); renderExamBoard(); renderPhotoGallery();
@@ -279,7 +317,6 @@
 
         function pushToCloud(payload) { fetch(cloudUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }); }
 
-        // 🧠 磁吸辨識大腦：加入「甲本、乙本」至國語科分類
         function getSubjectClass(title) {
             if (title.includes("國") || title.includes("字") || title.includes("聽") || title.includes("圈") || title.includes("默") || title.includes("預") || title.includes("甲") || title.includes("乙")) return "card-chinese";
             if (title.includes("數")) return "card-math";
@@ -297,7 +334,7 @@
                         const idx = activeCardsData.findIndex(c => c.fullTitle === identifier);
                         if (idx !== -1) { activeCardsData[idx].statusArray[s] = 0; syncDailyCard(idx); }
                     } else if (type === 'exam') {
-                        const idx = examRecordsData.findIndex(e => e.examName === identifier);
+                        const idx = examRecordsData.findIndex(e => e.fullRawName === identifier);
                         if (idx !== -1) { examRecordsData[idx].statusArray[s] = 0; syncExamCard(idx); }
                     }
                 }, 400);
@@ -316,7 +353,7 @@
                     const idx = activeCardsData.findIndex(c => c.fullTitle === identifier);
                     if (idx !== -1) { activeCardsData[idx].statusArray[s] = status; syncDailyCard(idx); }
                 } else if (type === 'exam') {
-                    const idx = examRecordsData.findIndex(e => e.examName === identifier);
+                    const idx = examRecordsData.findIndex(e => e.fullRawName === identifier);
                     if (idx !== -1) { examRecordsData[idx].statusArray[s] = status; syncExamCard(idx); }
                 }
                 btn.className = 'student-node'; if (status > 0) btn.classList.add(`status-${status}`);
@@ -324,24 +361,33 @@
         }
 
         function syncDailyCard(idx) { pushToCloud({ action: "saveOrUpdate", fullTitle: activeCardsData[idx].fullTitle, pureName: activeCardsData[idx].pureName, statusArray: activeCardsData[idx].statusArray, isLocked: activeCardsData[idx].isLocked }); checkCardCompletion(idx, 'daily'); }
-        function syncExamCard(idx) { pushToCloud({ action: "saveExam", examName: examRecordsData[idx].examName, statusArray: examRecordsData[idx].statusArray, isLocked: examRecordsData[idx].isLocked }); checkCardCompletion(idx, 'exam'); }
+        function syncExamCard(idx) { pushToCloud({ action: "saveExam", examName: examRecordsData[idx].fullRawName, statusArray: examRecordsData[idx].statusArray, isLocked: examRecordsData[idx].isLocked }); checkCardCompletion(idx, 'exam'); }
 
+        // 📁 日常作業：真・雙軌實體左右排版大腦
         function renderBoard() {
-            const canvas = document.getElementById('boardCanvas'); canvas.innerHTML = ""; 
+            const chTrack = document.getElementById('dailyChineseTrack');
+            const mathTrack = document.getElementById('dailyMathTrack');
             
+            // 清空舊卡片，但保留標題
+            chTrack.innerHTML = '<div class="track-header-title track-chinese-title">📘 語文類特區 (國語/甲乙本/聽圈默)</div>';
+            mathTrack.innerHTML = '<div class="track-header-title track-math-title">📐 數學與其他特區 (數習/數作/控卡)</div>';
+            
+            // 內部排序：只排序自訂優先順位（1~5）
             let sortedCards = [...activeCardsData].sort((a, b) => {
-                let scoreA = a.fullTitle.includes("國") || a.fullTitle.includes("字") || a.fullTitle.includes("聽") || a.fullTitle.includes("圈") || a.fullTitle.includes("默") || a.fullTitle.includes("預") || a.fullTitle.includes("甲") || a.fullTitle.includes("乙") ? 1 : (a.fullTitle.includes("數") ? 2 : 3);
-                let scoreB = b.fullTitle.includes("國") || b.fullTitle.includes("字") || b.fullTitle.includes("聽") || b.fullTitle.includes("圈") || b.fullTitle.includes("默") || b.fullTitle.includes("預") || b.fullTitle.includes("甲") || b.fullTitle.includes("乙") ? 1 : (b.fullTitle.includes("數") ? 2 : 3);
-                return scoreA - scoreB;
+                let orderA = 5; if(a.fullTitle.includes("::O")) orderA = parseInt(a.fullTitle.split("::O")[1]) || 5;
+                let orderB = 5; if(b.fullTitle.includes("::O")) orderB = parseInt(b.fullTitle.split("::O")[1]) || 5;
+                return orderA - orderB;
             });
 
             sortedCards.forEach((cardData) => {
                 const idx = activeCardsData.findIndex(c => c.fullTitle === cardData.fullTitle);
+                const displayTitle = cardData.fullTitle.split("::O")[0];
+
                 const card = document.createElement('div'); card.className = `homework-card ${getSubjectClass(cardData.fullTitle)}`; card.id = `card_daily_${cardData.fullTitle}`;
                 if (cardData.isLocked || !isTeacher) card.classList.add('hide-green-mode');
 
                 const header = document.createElement('div'); header.className = 'card-header';
-                const title = document.createElement('div'); title.className = 'card-title'; title.textContent = cardData.fullTitle;
+                const title = document.createElement('div'); title.className = 'card-title'; title.textContent = displayTitle;
                 const actions = document.createElement('div'); actions.className = 'header-actions';
                 
                 const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'; lockBtn.textContent = cardData.isLocked ? '🔓 解鎖' : '🔒 鎖定';
@@ -349,7 +395,7 @@
                 lockBtn.onclick = () => { cardData.isLocked = !cardData.isLocked; syncDailyCard(idx); renderBoard(); };
 
                 const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
-                delBtn.onclick = () => { if(confirm(`確定要取下「${cardData.fullTitle}」嗎？`)) { card.remove(); activeCardsData.splice(idx, 1); pushToCloud({ action: "delete", fullTitle: cardData.fullTitle }); } };
+                delBtn.onclick = () => { if(confirm(`確定要取下「${displayTitle}」嗎？`)) { card.remove(); activeCardsData.splice(idx, 1); pushToCloud({ action: "delete", fullTitle: cardData.fullTitle }); } };
 
                 actions.appendChild(lockBtn); actions.appendChild(delBtn); header.appendChild(title); header.appendChild(actions); card.appendChild(header);
                 const matrix = document.createElement('div'); matrix.className = 'student-matrix';
@@ -358,22 +404,30 @@
                     const currentStatus = cardData.statusArray[s] || 0; btn.dataset.status = currentStatus; if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
                     bindNodeEvents(btn, s, 'daily', cardData.fullTitle); matrix.appendChild(btn);
                 }
-                card.appendChild(matrix); canvas.appendChild(card);
+                card.appendChild(matrix);
+                
+                // 🎯 核心分流：判定科目，自動丟進左軌道或右軌道
+                if (getSubjectClass(cardData.fullTitle) === "card-chinese") {
+                    chTrack.appendChild(card);
+                } else {
+                    mathTrack.appendChild(card);
+                }
             });
         }
 
+        // 📊 學期考試：真・雙軌實體左右排版大腦
         function renderExamBoard() {
-            const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
+            const chTrack = document.getElementById('examChineseTrack');
+            const mathTrack = document.getElementById('examMathTrack');
             
-            let sortedExams = [...examRecordsData].sort((a, b) => {
-                let scoreA = a.examName.includes("國") || a.examName.includes("字") || a.examName.includes("聽") || a.examName.includes("圈") || a.examName.includes("默") || a.examName.includes("預") || a.examName.includes("甲") || a.examName.includes("乙") ? 1 : (a.examName.includes("數") ? 2 : 3);
-                let scoreB = b.examName.includes("國") || b.examName.includes("字") || b.examName.includes("聽") || b.examName.includes("圈") || b.examName.includes("默") || b.examName.includes("預") || b.examName.includes("甲") || b.examName.includes("乙") ? 1 : (b.examName.includes("數") ? 2 : 3);
-                return scoreA - scoreB;
-            });
+            chTrack.innerHTML = '<div class="track-header-title track-chinese-title">📘 語文類考試 (國語考卷/聽寫)</div>';
+            mathTrack.innerHTML = '<div class="track-header-title track-math-title">📐 數學與其他考試 (單元卷/總複習)</div>';
+            
+            let sortedExams = [...examRecordsData].sort((a, b) => a.order - b.order);
 
             sortedExams.forEach((examData) => {
-                const idx = examRecordsData.findIndex(e => e.examName === examData.examName);
-                const card = document.createElement('div'); card.className = `homework-card exam-card ${getSubjectClass(examData.examName)}`; card.id = `card_exam_${examData.examName}`;
+                const idx = examRecordsData.findIndex(e => e.fullRawName === examData.fullRawName);
+                const card = document.createElement('div'); card.className = `homework-card exam-card ${getSubjectClass(examData.fullRawName)}`; card.id = `card_exam_${examData.fullRawName}`;
                 if (examData.isLocked || !isTeacher) card.classList.add('hide-green-mode');
 
                 const header = document.createElement('div'); header.className = 'card-header';
@@ -385,16 +439,23 @@
                 lockBtn.onclick = () => { examData.isLocked = !examData.isLocked; syncExamCard(idx); renderExamBoard(); };
 
                 const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
-                delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」卡片嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.examName }); } };
+                delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.fullRawName }); } };
 
                 actions.appendChild(lockBtn); actions.appendChild(delBtn); header.appendChild(title); header.appendChild(actions); card.appendChild(header);
                 const matrix = document.createElement('div'); matrix.className = 'student-matrix';
                 for (let s = 1; s <= totalStudents; s++) {
                     const btn = document.createElement('button'); btn.className = 'student-node'; btn.textContent = String(s).padStart(2, '0');
                     const currentStatus = examData.statusArray[s] || 0; btn.dataset.status = currentStatus; if (currentStatus > 0) btn.classList.add(`status-${currentStatus}`);
-                    bindNodeEvents(btn, s, 'exam', examData.examName); matrix.appendChild(btn);
+                    bindNodeEvents(btn, s, 'exam', examData.fullRawName); matrix.appendChild(btn);
                 }
-                card.appendChild(matrix); canvas.appendChild(card);
+                card.appendChild(matrix);
+                
+                // 🎯 核心分流：判定科目，自動丟進左軌道或右軌道
+                if (getSubjectClass(examData.fullRawName) === "card-chinese") {
+                    chTrack.appendChild(card);
+                } else {
+                    mathTrack.appendChild(card);
+                }
             });
         }
 
@@ -417,46 +478,49 @@
 
         function createNewCard() {
             if (!isTeacher) return; const select = document.getElementById('taskSelect'); const customInput = document.getElementById('customInput'); let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value; if (!pureTaskName) return;
-            const today = new Date(); const newFullTitle = `${pureTaskName} ${today.getMonth() + 1}/${today.getDate()}`;
-            if (activeCardsData.some(c => c.fullTitle === newFullTitle)) { alert("防呆：今天已有同名作業！"); return; }
+            const today = new Date(); const orderVal = document.getElementById('cardOrderDaily').value;
             
-            // 🎯 新增邏輯：判斷是否勾選「預設全班未完成」
+            const newFullTitle = `${pureTaskName} ${today.getMonth() + 1}/${today.getDate()}::O${orderVal}`;
+            if (activeCardsData.some(c => c.fullTitle === newFullTitle)) { alert("防呆：今天已有同名且同優先權的作業！"); return; }
+            
             const isDefaultDebt = document.getElementById('defaultDebtDaily').checked;
             let advancedStatus = Array(totalStudents + 1).fill(isDefaultDebt ? 1 : 0);
             
             let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
             if (oldCard) { for (let s = 1; s <= totalStudents; s++) { let oldStatus = oldCard.statusArray[s] || 0; if (oldStatus === 1) advancedStatus[s] = 2; else if (oldStatus === 2 || oldStatus === 3) advancedStatus[s] = 3; } activeCardsData = activeCardsData.filter(c => c.fullTitle !== oldCard.fullTitle); pushToCloud({ action: "delete", fullTitle: oldCard.fullTitle }); }
             activeCardsData.push({ fullTitle: newFullTitle, pureName: pureTaskName, statusArray: advancedStatus, isLocked: false }); renderBoard(); pushToCloud({ action: "saveOrUpdate", fullTitle: newFullTitle, pureName: pureTaskName, statusArray: advancedStatus, isLocked: false });
+            
             select.value = ""; customInput.value = ""; customInput.style.display = "none";
-            document.getElementById('defaultDebtDaily').checked = false; // 自動取消打勾
+            document.getElementById('defaultDebtDaily').checked = false;
+            document.getElementById('cardOrderDaily').value = "5";
         }
 
         function addNewExamCard() {
             if (!isTeacher) return; const subj = document.getElementById('examSubject').value; const unit = document.getElementById('examUnitInput').value.trim(); if (!unit) return;
-            const fullExamName = `${subj}-${unit}`; if (examRecordsData.some(e => e.examName === fullExamName)) { alert("已有此考試卡片！"); return; }
+            const orderVal = document.getElementById('cardOrderExam').value;
             
-            // 🎯 新增邏輯：判斷是否勾選「預設全班未完成」
+            const baseExamName = `${subj}-${unit}`;
+            const fullRawName = `${baseExamName}::O${orderVal}`;
+            
+            if (examRecordsData.some(e => e.fullRawName === fullRawName)) { alert("已有此同名且同優先權的考試卡片！"); return; }
+            
             const isDefaultDebt = document.getElementById('defaultDebtExam').checked;
             const initialStatus = Array(totalStudents + 1).fill(isDefaultDebt ? 1 : 0);
             
-            examRecordsData.push({ examName: fullExamName, statusArray: initialStatus, isLocked: false }); renderExamBoard();
-            pushToCloud({ action: "saveExam", examName: fullExamName, statusArray: initialStatus, isLocked: false }); document.getElementById('examUnitInput').value = "";
-            document.getElementById('defaultDebtExam').checked = false; // 自動取消打勾
-        }
-
-        function addNewPhotoAlbumCloud() {
-            if (!isTeacher) return;
-            const url = document.getElementById('photoUrlInput').value.trim(); const icon = document.getElementById('photoIconSelect').value; const name = document.getElementById('photoNameInput').value.trim(); const desc = document.getElementById('photoDescInput').value.trim();
-            if (!url || !name) return; pushToCloud({ action: "savePhoto", url: url, icon: icon, name: name, desc: desc });
-            setTimeout(() => fetchCloudData(false), 1000);
-            document.getElementById('photoUrlInput').value = ""; document.getElementById('photoNameInput').value = ""; document.getElementById('photoDescInput').value = "";
+            examRecordsData.push({ examName: baseExamName, fullRawName: fullRawName, statusArray: initialStatus, isLocked: false, order: parseInt(orderVal) }); 
+            renderExamBoard();
+            
+            pushToCloud({ action: "saveExam", examName: fullRawName, statusArray: initialStatus, isLocked: false }); 
+            document.getElementById('examUnitInput').value = "";
+            document.getElementById('defaultDebtExam').checked = false;
+            document.getElementById('cardOrderExam').value = "5";
         }
 
         function buildShutUpWall() {
             const grid = document.getElementById('wallGrid'); grid.innerHTML = "";
             for (let s = 1; s <= totalStudents; s++) {
                 let dList = []; let eList = [];
-                activeCardsData.forEach(c => { if ((c.statusArray[s] || 0) > 0) dList.push(c.fullTitle); });
+                activeCardsData.forEach(c => { if ((c.statusArray[s] || 0) > 0) dList.push(c.fullTitle.split("::O")[0]); });
                 examRecordsData.forEach(e => { if ((e.statusArray[s] || 0) > 0) eList.push(e.examName); });
 
                 const box = document.createElement('div'); box.className = 'wall-student-box';
@@ -476,7 +540,7 @@
 
         function exportDebtReport() {
             let reportMap = {}; for (let s = 1; s <= totalStudents; s++) { reportMap[s] = { daily: [], exam: [] }; }
-            activeCardsData.forEach(c => { for (let s = 1; s <= totalStudents; s++) { if ((c.statusArray[s] || 0) > 0) reportMap[s].daily.push(c.fullTitle); } });
+            activeCardsData.forEach(c => { for (let s = 1; s <= totalStudents; s++) { if ((c.statusArray[s] || 0) > 0) reportMap[s].daily.push(c.fullTitle.split("::O")[0]); } });
             examRecordsData.forEach(e => { for (let s = 1; s <= totalStudents; s++) { if ((e.statusArray[s] || 0) > 0) reportMap[s].exam.push(e.examName); } });
 
             let finalStr = `📋 NICE家族 欠交/補考 總追債報告\n(產出時間: ${new Date().toLocaleTimeString()})\n-------------------------\n`;
@@ -502,20 +566,20 @@
             } else {
                 const exam = examRecordsData[idx]; if (!exam) return;
                 if (exam.statusArray.slice(1, totalStudents + 1).every(s => s === 0)) {
-                    const el = document.getElementById(`card_exam_${exam.examName}`); if (el) { el.classList.add('fade-out'); setTimeout(() => { el.remove(); examRecordsData = examRecordsData.filter(e => e.examName !== exam.examName); pushToCloud({ action: "deleteExam", examName: exam.examName }); if(document.getElementById('shutUpWall').style.display === 'block') buildShutUpWall(); }, 400); }
+                    const el = document.getElementById(`card_exam_${exam.fullRawName}`); if (el) { el.classList.add('fade-out'); setTimeout(() => { el.remove(); examRecordsData = examRecordsData.filter(e => e.fullRawName !== exam.fullRawName); pushToCloud({ action: "deleteExam", examName: exam.fullRawName }); if(document.getElementById('shutUpWall').style.display === 'block') buildShutUpWall(); }, 400); }
                 }
             }
         }
 
         function triggerClear() {
-            if (currentMode === 'daily') { if(confirm("確定清空日常作業？")) { document.getElementById('boardCanvas').innerHTML = ""; activeCardsData = []; pushToCloud({ action: "clearDaily" }); document.getElementById('shutUpWall').style.display = 'none'; } }
-            else { if(confirm("確定清空學期所有考試？")) { document.getElementById('examCanvas').innerHTML = ""; examRecordsData = []; pushToCloud({ action: "clearExam" }); document.getElementById('shutUpWall').style.display = 'none'; } }
+            if (currentMode === 'daily') { if(confirm("確定清空日常作業？")) { fetchCloudData(false); activeCardsData = []; pushToCloud({ action: "clearDaily" }); document.getElementById('shutUpWall').style.display = 'none'; } }
+            else { if(confirm("確定清空學期所有考試？")) { fetchCloudData(false); examRecordsData = []; pushToCloud({ action: "clearExam" }); document.getElementById('shutUpWall').style.display = 'none'; } }
         }
 
         function searchStudentMissing() {
             const inputEl = document.getElementById('searchNo'); const seatNo = parseInt(inputEl.value); if (isNaN(seatNo) || seatNo < 1 || seatNo > totalStudents) return;
             let dailyMissing = []; let examMissing = [];
-            activeCardsData.forEach(c => { if (c.statusArray[seatNo] > 0) dailyMissing.push(`📌 ${c.fullTitle}`); });
+            activeCardsData.forEach(c => { if (c.statusArray[seatNo] > 0) dailyMissing.push(`📌 ${c.fullTitle.split("::O")[0]}`); });
             examRecordsData.forEach(e => { if (e.statusArray[seatNo] > 0) examMissing.push(`📝 ${e.examName}`); });
             if (dailyMissing.length === 0 && examMissing.length === 0) { alert(`🎉 恭喜！【 ${seatNo} 號】目前全部過關！`); } 
             else { alert(`📋 【 ${seatNo} 號】未完成報告：\n\n【日常】\n${dailyMissing.join('\n') || '無'}\n\n【考試】\n${examMissing.join('\n') || '無'}`); }
