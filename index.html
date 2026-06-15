@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NICE家族即時親師數位看板 8.9 終極完全體</title>
+    <title>NICE家族即時親師數位看板 8.9.2 一鍵追債版</title>
     <style>
         :root {
             --bg-color: #1e1e24;
@@ -64,6 +64,9 @@
         .select-style { background-color: #3b3b4f; color: white; cursor: pointer; }
         .input-style { background-color: #fff; color: #333; width: 180px; }
         .btn-add { background-color: #4cc9f0; color: #1e1e24; cursor: pointer; transition: all 0.2s; font-weight: bold; }
+        
+        .check-container { display: flex; align-items: center; gap: 6px; color: #fccc52; font-weight: bold; font-size: 0.95rem; cursor: pointer; background: rgba(252,204,82,0.1); padding: 8px 12px; border-radius: 8px; border: 1px dashed #fccc52; }
+        .check-container input { width: 16px; height: 16px; cursor: pointer; }
 
         .board-canvas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; max-width: 1400px; margin: 0 auto; padding-bottom: 40px; }
         
@@ -153,6 +156,11 @@
             <option value="CUSTOM">💡 自行輸入新作業</option>
         </select>
         <input type="text" class="input-style" id="customInput" placeholder="請打上新作業名稱" style="display:none;">
+        
+        <label class="check-container">
+            <input type="checkbox" id="defaultDebtDaily"> 📢 預設全班未完成
+        </label>
+
         <button class="btn-add" onclick="createNewCard()">＋ 掛上登記板</button>
         
         <div class="teacher-tools-row">
@@ -167,6 +175,11 @@
             <option value="國語">國語</option><option value="數學">數學</option><option value="社會">社會</option><option value="自然">自然</option><option value="其他">其他</option>
         </select>
         <input type="text" class="input-style" id="examUnitInput" placeholder="單元 (例如: 第一單元)">
+        
+        <label class="check-container">
+            <input type="checkbox" id="defaultDebtExam"> 📢 預設全班未完成
+        </label>
+
         <button class="btn-add" onclick="addNewExamCard()">＋ 掛上考試卡片</button>
         
         <div class="teacher-tools-row">
@@ -266,8 +279,9 @@
 
         function pushToCloud(payload) { fetch(cloudUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }); }
 
+        // 🧠 磁吸辨識大腦：加入「甲本、乙本」至國語科分類
         function getSubjectClass(title) {
-            if (title.includes("國") || title.includes("字") || title.includes("聽") || title.includes("圈") || title.includes("默") || title.includes("預")) return "card-chinese";
+            if (title.includes("國") || title.includes("字") || title.includes("聽") || title.includes("圈") || title.includes("默") || title.includes("預") || title.includes("甲") || title.includes("乙")) return "card-chinese";
             if (title.includes("數")) return "card-math";
             return "";
         }
@@ -312,13 +326,12 @@
         function syncDailyCard(idx) { pushToCloud({ action: "saveOrUpdate", fullTitle: activeCardsData[idx].fullTitle, pureName: activeCardsData[idx].pureName, statusArray: activeCardsData[idx].statusArray, isLocked: activeCardsData[idx].isLocked }); checkCardCompletion(idx, 'daily'); }
         function syncExamCard(idx) { pushToCloud({ action: "saveExam", examName: examRecordsData[idx].examName, statusArray: examRecordsData[idx].statusArray, isLocked: examRecordsData[idx].isLocked }); checkCardCompletion(idx, 'exam'); }
 
-        // 📁 日常作業：畫圖前自動依照「國語在前、數學在後」進行自動磁吸分類排序
         function renderBoard() {
             const canvas = document.getElementById('boardCanvas'); canvas.innerHTML = ""; 
             
             let sortedCards = [...activeCardsData].sort((a, b) => {
-                let scoreA = a.fullTitle.includes("國") || a.fullTitle.includes("字") || a.fullTitle.includes("聽") || a.fullTitle.includes("圈") || a.fullTitle.includes("默") || a.fullTitle.includes("預") ? 1 : (a.fullTitle.includes("數") ? 2 : 3);
-                let scoreB = b.fullTitle.includes("國") || b.fullTitle.includes("字") || b.fullTitle.includes("聽") || b.fullTitle.includes("圈") || b.fullTitle.includes("默") || b.fullTitle.includes("預") ? 1 : (b.fullTitle.includes("數") ? 2 : 3);
+                let scoreA = a.fullTitle.includes("國") || a.fullTitle.includes("字") || a.fullTitle.includes("聽") || a.fullTitle.includes("圈") || a.fullTitle.includes("默") || a.fullTitle.includes("預") || a.fullTitle.includes("甲") || a.fullTitle.includes("乙") ? 1 : (a.fullTitle.includes("數") ? 2 : 3);
+                let scoreB = b.fullTitle.includes("國") || b.fullTitle.includes("字") || b.fullTitle.includes("聽") || b.fullTitle.includes("圈") || b.fullTitle.includes("默") || b.fullTitle.includes("預") || b.fullTitle.includes("甲") || b.fullTitle.includes("乙") ? 1 : (b.fullTitle.includes("數") ? 2 : 3);
                 return scoreA - scoreB;
             });
 
@@ -349,31 +362,27 @@
             });
         }
 
-        // 📊 學期考試：完整補齊實體「🔒 鎖定」按鈕、並判定雲端永久鎖定記憶
         function renderExamBoard() {
             const canvas = document.getElementById('examCanvas'); canvas.innerHTML = "";
-            examRecordsData.forEach((examData, idx) => {
-                const card = document.createElement('div'); card.className = 'homework-card exam-card'; card.id = `card_exam_${examData.examName}`;
-                
-                if (examData.isLocked || !isTeacher) {
-                    card.classList.add('hide-green-mode');
-                }
+            
+            let sortedExams = [...examRecordsData].sort((a, b) => {
+                let scoreA = a.examName.includes("國") || a.examName.includes("字") || a.examName.includes("聽") || a.examName.includes("圈") || a.examName.includes("默") || a.examName.includes("預") || a.examName.includes("甲") || a.examName.includes("乙") ? 1 : (a.examName.includes("數") ? 2 : 3);
+                let scoreB = b.examName.includes("國") || b.examName.includes("字") || b.examName.includes("聽") || b.examName.includes("圈") || b.examName.includes("默") || b.examName.includes("預") || b.examName.includes("甲") || b.examName.includes("乙") ? 1 : (b.examName.includes("數") ? 2 : 3);
+                return scoreA - scoreB;
+            });
+
+            sortedExams.forEach((examData) => {
+                const idx = examRecordsData.findIndex(e => e.examName === examData.examName);
+                const card = document.createElement('div'); card.className = `homework-card exam-card ${getSubjectClass(examData.examName)}`; card.id = `card_exam_${examData.examName}`;
+                if (examData.isLocked || !isTeacher) card.classList.add('hide-green-mode');
 
                 const header = document.createElement('div'); header.className = 'card-header';
                 const title = document.createElement('div'); title.className = 'card-title'; title.textContent = `📝 ${examData.examName}`;
                 const actions = document.createElement('div'); actions.className = 'header-actions';
 
-                const lockBtn = document.createElement('button'); 
-                lockBtn.className = 'btn-lock'; 
-                lockBtn.textContent = examData.isLocked ? '🔓 解鎖' : '🔒 鎖定';
-                if (examData.isLocked) lockBtn.classList.add('locked'); 
-                if (isTeacher) lockBtn.style.display = 'block';
-                
-                lockBtn.onclick = () => { 
-                    examData.isLocked = !examData.isLocked; 
-                    syncExamCard(idx); 
-                    renderExamBoard(); 
-                };
+                const lockBtn = document.createElement('button'); lockBtn.className = 'btn-lock'; lockBtn.textContent = examData.isLocked ? '🔓 解鎖' : '🔒 鎖定';
+                if (examData.isLocked) lockBtn.classList.add('locked'); if (isTeacher) lockBtn.style.display = 'block';
+                lockBtn.onclick = () => { examData.isLocked = !examData.isLocked; syncExamCard(idx); renderExamBoard(); };
 
                 const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.innerHTML = '🗑️'; if (isTeacher) delBtn.style.display = 'block';
                 delBtn.onclick = () => { if(confirm(`確定要下架「${examData.examName}」卡片嗎？`)) { card.remove(); examRecordsData.splice(idx, 1); pushToCloud({ action: "deleteExam", examName: examData.examName }); } };
@@ -410,17 +419,29 @@
             if (!isTeacher) return; const select = document.getElementById('taskSelect'); const customInput = document.getElementById('customInput'); let pureTaskName = (select.value === "CUSTOM") ? customInput.value.trim() : select.value; if (!pureTaskName) return;
             const today = new Date(); const newFullTitle = `${pureTaskName} ${today.getMonth() + 1}/${today.getDate()}`;
             if (activeCardsData.some(c => c.fullTitle === newFullTitle)) { alert("防呆：今天已有同名作業！"); return; }
-            let advancedStatus = Array(totalStudents + 1).fill(0); let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
+            
+            // 🎯 新增邏輯：判斷是否勾選「預設全班未完成」
+            const isDefaultDebt = document.getElementById('defaultDebtDaily').checked;
+            let advancedStatus = Array(totalStudents + 1).fill(isDefaultDebt ? 1 : 0);
+            
+            let oldCard = [...activeCardsData].reverse().find(c => c.pureName === pureTaskName);
             if (oldCard) { for (let s = 1; s <= totalStudents; s++) { let oldStatus = oldCard.statusArray[s] || 0; if (oldStatus === 1) advancedStatus[s] = 2; else if (oldStatus === 2 || oldStatus === 3) advancedStatus[s] = 3; } activeCardsData = activeCardsData.filter(c => c.fullTitle !== oldCard.fullTitle); pushToCloud({ action: "delete", fullTitle: oldCard.fullTitle }); }
             activeCardsData.push({ fullTitle: newFullTitle, pureName: pureTaskName, statusArray: advancedStatus, isLocked: false }); renderBoard(); pushToCloud({ action: "saveOrUpdate", fullTitle: newFullTitle, pureName: pureTaskName, statusArray: advancedStatus, isLocked: false });
             select.value = ""; customInput.value = ""; customInput.style.display = "none";
+            document.getElementById('defaultDebtDaily').checked = false; // 自動取消打勾
         }
 
         function addNewExamCard() {
             if (!isTeacher) return; const subj = document.getElementById('examSubject').value; const unit = document.getElementById('examUnitInput').value.trim(); if (!unit) return;
             const fullExamName = `${subj}-${unit}`; if (examRecordsData.some(e => e.examName === fullExamName)) { alert("已有此考試卡片！"); return; }
-            const initialStatus = Array(totalStudents + 1).fill(0); examRecordsData.push({ examName: fullExamName, statusArray: initialStatus, isLocked: false }); renderExamBoard();
+            
+            // 🎯 新增邏輯：判斷是否勾選「預設全班未完成」
+            const isDefaultDebt = document.getElementById('defaultDebtExam').checked;
+            const initialStatus = Array(totalStudents + 1).fill(isDefaultDebt ? 1 : 0);
+            
+            examRecordsData.push({ examName: fullExamName, statusArray: initialStatus, isLocked: false }); renderExamBoard();
             pushToCloud({ action: "saveExam", examName: fullExamName, statusArray: initialStatus, isLocked: false }); document.getElementById('examUnitInput').value = "";
+            document.getElementById('defaultDebtExam').checked = false; // 自動取消打勾
         }
 
         function addNewPhotoAlbumCloud() {
@@ -438,9 +459,7 @@
                 activeCardsData.forEach(c => { if ((c.statusArray[s] || 0) > 0) dList.push(c.fullTitle); });
                 examRecordsData.forEach(e => { if ((e.statusArray[s] || 0) > 0) eList.push(e.examName); });
 
-                const box = document.createElement('div');
-                box.className = 'wall-student-box';
-
+                const box = document.createElement('div'); box.className = 'wall-student-box';
                 if (dList.length === 0 && eList.length === 0) {
                     box.classList.add('clean');
                     box.innerHTML = `<div class="wall-no is-clean">😇 ${String(s).padStart(2,'0')}號</div><div style="color:#2a9d8f; font-size:0.85rem; font-weight:bold;">✨ 全數通關！</div>`;
@@ -456,30 +475,22 @@
         }
 
         function exportDebtReport() {
-            let reportMap = {};
-            for (let s = 1; s <= totalStudents; s++) { reportMap[s] = { daily: [], exam: [] }; }
-
+            let reportMap = {}; for (let s = 1; s <= totalStudents; s++) { reportMap[s] = { daily: [], exam: [] }; }
             activeCardsData.forEach(c => { for (let s = 1; s <= totalStudents; s++) { if ((c.statusArray[s] || 0) > 0) reportMap[s].daily.push(c.fullTitle); } });
             examRecordsData.forEach(e => { for (let s = 1; s <= totalStudents; s++) { if ((e.statusArray[s] || 0) > 0) reportMap[s].exam.push(e.examName); } });
 
             let finalStr = `📋 NICE家族 欠交/補考 總追債報告\n(產出時間: ${new Date().toLocaleTimeString()})\n-------------------------\n`;
             let cleanCount = 0;
-
             for (let s = 1; s <= totalStudents; s++) {
-                if (reportMap[s].daily.length === 0 && reportMap[s].exam.length === 0) {
-                    cleanCount++; continue;
-                }
+                if (reportMap[s].daily.length === 0 && reportMap[s].exam.length === 0) { cleanCount++; continue; }
                 finalStr += `👤 ${String(s).padStart(2,'0')}號：\n`;
                 if (reportMap[s].daily.length > 0) finalStr += `  📁 作業 -> ${reportMap[s].daily.join('、')}\n`;
                 if (reportMap[s].exam.length > 0) finalStr += `  📝 補考 -> ${reportMap[s].exam.join('、')}\n`;
                 finalStr += `\n`;
             }
             finalStr += `-------------------------\n🎉 目前共有 ${cleanCount} 位優秀天使全數過關！`;
-            
-            navigator.clipboard.writeText(finalStr);
-            buildShutUpWall();
-            document.getElementById('shutUpWall').style.display = 'block';
-            document.getElementById('shutUpWall').scrollIntoView({ behavior: 'smooth' });
+            navigator.clipboard.writeText(finalStr); buildShutUpWall();
+            document.getElementById('shutUpWall').style.display = 'block'; document.getElementById('shutUpWall').scrollIntoView({ behavior: 'smooth' });
         }
 
         function checkCardCompletion(idx, type) {
