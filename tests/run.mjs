@@ -176,6 +176,13 @@ async function runTests() {
     eq((await call('POST', `/api/cards/${c.id}/restore`)).status, 200);
   });
 
+  await test('密碼錯誤太多次會被暫時擋下，正確密碼不受影響', async () => {
+    const codes = [];
+    for (let i = 0; i < 8; i++) codes.push((await call('POST', '/api/auth', undefined, `guess${i}`)).status);
+    if (!codes.includes(429)) throw new Error(`沒有被擋下：${codes.join(',')}`);
+    eq((await call('POST', '/api/auth')).status, 200);
+  });
+
   await test('網頁可以開啟', async () => {
     const res = await fetch(BASE + '/');
     eq(res.status, 200);

@@ -5,6 +5,7 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   ADMIN_TOKEN?: string;
+  LOGIN_LIMIT?: RateLimit;
 }
 
 type Kind = 'daily' | 'exam';
@@ -334,7 +335,15 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (method === 'GET' && path === '/api/board') return json(await getBoard(db));
 
   // 以下都需要老師密碼
-  if (!isAdmin(request, env)) throw new HttpError(401, '老師密碼不正確，請重新登入');
+  if (!isAdmin(request, env)) {
+    // 有帶密碼但錯誤：計入次數限制，避免被程式猜出密碼
+    if (request.headers.has('Authorization') && env.LOGIN_LIMIT) {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      const { success } = await env.LOGIN_LIMIT.limit({ key: ip });
+      if (!success) throw new HttpError(429, '密碼錯誤太多次，請 1 分鐘後再試');
+    }
+    throw new HttpError(401, '老師密碼不正確，請重新登入');
+  }
 
   if (method === 'POST' && path === '/api/auth') return json({ ok: true });
   if (method === 'GET' && path === '/api/trash') return json(await getTrash(db, now));

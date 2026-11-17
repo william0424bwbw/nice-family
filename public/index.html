@@ -155,6 +155,7 @@
         .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #e63946; color: white; padding: 10px 16px; border-radius: 10px; font-weight: bold; z-index: 200; display: none; max-width: calc(100% - 32px); box-sizing: border-box; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
         .toast.ok { background: #2a9d8f; }
         .toast.show { display: block; }
+        .toast-action { margin-left: 12px; background: #fff; color: #1e1e24; border: none; border-radius: 6px; padding: 4px 12px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -304,6 +305,7 @@
         // 送出中的點擊：key = "卡片編號:座號"；送出中時，定時更新不會把畫面蓋回舊狀態
         const pendingSeats = new Set();
         let pendingOther = 0;
+        let changeEpoch = 0;
         let lastLoadOk = false;
 
         // ---------- 共用 ----------
@@ -312,12 +314,19 @@
         function pad(n) { return String(n).padStart(2, '0'); }
 
         let toastTimer;
-        function toast(msg, ok) {
+        // action：{ label, fn } 在提示上加一個按鈕（例如「復原」）
+        function toast(msg, ok, action) {
             const el = document.getElementById('toast');
             el.textContent = msg;
+            if (action) {
+                const b = document.createElement('button');
+                b.className = 'toast-action'; b.textContent = action.label;
+                b.onclick = () => { el.className = 'toast'; action.fn(); };
+                el.appendChild(b);
+            }
             el.className = 'toast show' + (ok ? ' ok' : '');
             clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => { el.className = 'toast'; }, ok ? 2000 : 5000);
+            toastTimer = setTimeout(() => { el.className = 'toast'; }, action ? 8000 : ok ? 2000 : 5000);
         }
 
         async function api(method, path, body) {
@@ -326,9 +335,16 @@
             if (body !== undefined) headers['Content-Type'] = 'application/json';
             let res;
             try {
-                res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+                // 10 秒逾時：手機切換網路時請求可能卡住，不要讓畫面一直停在「送出中」
+                const signal = typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10000) : undefined;
+                res = await fetch(path, { method, headers, signal, body: body === undefined ? undefined : JSON.stringify(body) });
             } catch {
-                throw new Error('網路連線失敗，這次修改沒有存到，請再試一次');
+                throw new Error('網路連線失敗或太慢，請再試一次');
+            }
+            if (res.status === 429) {
+                const err = new Error('密碼錯誤太多次，請 1 分鐘後再試');
+                err.status = 429;
+                throw err;
             }
             let data = {};
             try { data = await res.json(); } catch { /* 沒有內容 */ }
@@ -415,10 +431,14 @@
         // ---------- 讀取 ----------
         async function loadBoard(manual) {
             if (manual) document.getElementById('loadingHint').style.display = 'block';
+            const epoch = changeEpoch;
             try {
                 const data = await api('GET', '/api/board');
-                // 有點擊還在送出時，先不要用伺服器的舊資料蓋掉畫面（下一輪再更新）
-                if (!manual && (pendingSeats.size || pendingOther)) return;
+                // 有點擊還在送出，或讀取期間有修改：這份資料可能是舊的，不要蓋掉畫面（下一輪再更新）
+                if (pendingSeats.size || pendingOther || epoch !== changeEpoch) {
+                    if (manual) { document.getElementById('loadingHint').style.display = 'none'; setTimeout(() => loadBoard(false), 1500); }
+                    return;
+                }
                 board = data;
                 lastLoadOk = true;
                 document.getElementById('searchNo').max = board.studentCount;
@@ -461,7 +481,9 @@
             return board.daily.find(c => c.id === id) || board.exam.find(c => c.id === id);
         }
 
+        let renderQueued = false;
         function renderAll() {
+            if (press) { renderQueued = true; return; }
             renderTracks('daily', 'dailyChineseTrack', 'dailyMathTrack',
                 '📘 語文類特區 (國語/甲乙本/聽圈默)', '📐 數學與其他特區 (數習/數作/控卡)');
             renderTracks('exam', 'examChineseTrack', 'examMathTrack',
@@ -534,25 +556,31 @@
         }
 
         // 點一下：狀態 +1（綠 → 橘 → 紅 → 紫 → 綠）；長按：直接變回綠色
+        // 手指按住期間不重畫畫面（重畫會換掉按鈕，造成漏點或長按計時器取消不掉）
+        let press = null;      // 目前按住的格子
+        let lastPress = null;  // 最近一次按壓（click 用來判斷是不是長按）
+        function endPress() {
+            if (press) { clearTimeout(press.timer); press = null; }
+            if (renderQueued) { renderQueued = false; setTimeout(renderAll, 0); }
+        }
+        document.addEventListener('pointerup', endPress, true);
+        document.addEventListener('pointercancel', endPress, true);
+
         function bindNodeEvents(btn, cardId, seat) {
-            let timer = null;
-            let longPressed = false;
-            const cancel = () => { clearTimeout(timer); timer = null; };
             btn.addEventListener('pointerdown', () => {
-                longPressed = false;
-                cancel();
-                timer = setTimeout(() => {
-                    longPressed = true;
+                endPress();
+                const p = { cardId, seat, long: false };
+                p.timer = setTimeout(() => {
+                    p.long = true;
                     btn.className = 'student-node exploding';
                     setTimeout(() => setSeat(cardId, seat, 0), 400);
                 }, LONG_PRESS_MS);
+                press = p; lastPress = p;
             });
-            btn.addEventListener('pointerup', cancel);
-            btn.addEventListener('pointerleave', cancel);
-            btn.addEventListener('pointercancel', cancel);
+            btn.addEventListener('pointerleave', () => { if (press && press.cardId === cardId && press.seat === seat) endPress(); });
             btn.addEventListener('contextmenu', e => e.preventDefault());
             btn.addEventListener('click', () => {
-                if (longPressed) { longPressed = false; return; }
+                if (lastPress && lastPress.long && lastPress.cardId === cardId && lastPress.seat === seat) { lastPress = null; return; }
                 const card = findCard(cardId); if (!card) return;
                 const now = card.statuses[seat - 1] || 0;
                 if (btn.closest('.hide-green-mode') && now === 0) return;
@@ -560,29 +588,51 @@
             });
         }
 
+        // 同一格一次只送一個請求：連點時先改畫面，等上一個存好再送「最後的狀態」
+        // （舊版連點會同時送出好幾個請求，到達順序不一定，會存成中間的狀態）
+        const seatSync = new Map();
         async function setSeat(cardId, seat, status) {
             const card = findCard(cardId); if (!card) return;
-            const before = card.statuses[seat - 1] || 0;
             const key = cardId + ':' + seat;
+            let st = seatSync.get(key);
+            if (!st) { st = { want: status, saved: card.statuses[seat - 1] || 0, sending: false }; seatSync.set(key, st); }
+            st.want = status;
             card.statuses[seat - 1] = status;
             pendingSeats.add(key);
+            changeEpoch++;
             renderAll();
+            if (st.sending) return;
+            st.sending = true;
+            let removed = false;
             try {
-                const r = await api('PUT', '/api/cards/' + cardId + '/seats/' + seat, { status });
-                pendingSeats.delete(key);
-                if (r.removed) {
-                    fadeOutCard(cardId);
-                    toast('🎉 「' + card.name + '」全班完成，卡片收起來了（可以從 ♻️ 復原）', true);
-                } else {
-                    renderAll();
+                while (st.want !== st.saved) {
+                    const target = st.want;
+                    const r = await api('PUT', '/api/cards/' + cardId + '/seats/' + seat, { status: target });
+                    st.saved = target;
+                    if (r.removed) { removed = true; break; }
                 }
             } catch (e) {
-                pendingSeats.delete(key);
+                seatSync.delete(key); pendingSeats.delete(key); changeEpoch++;
                 if (e.status === 404) { toast(e.message); loadBoard(true); return; }
                 const c = findCard(cardId);
-                if (c && c.statuses[seat - 1] === status) c.statuses[seat - 1] = before;
+                if (c) c.statuses[seat - 1] = st.saved;
                 renderAll();
-                toast(pad(seat) + ' 號沒有存到：' + e.message);
+                toast(pad(seat) + ' 號沒有存到，已恢復成上次存好的狀態：' + e.message);
+                return;
+            }
+            seatSync.delete(key); pendingSeats.delete(key); changeEpoch++;
+            if (removed) {
+                fadeOutCard(cardId);
+                // 點錯造成全班完成時，可以馬上按「復原」
+                toast('🎉 「' + card.name + '」全班完成，卡片收起來了', true, {
+                    label: '↩ 復原',
+                    fn: async () => {
+                        try { await withPending(() => api('POST', '/api/cards/' + cardId + '/restore')); await loadBoard(false); toast('已復原「' + card.name + '」', true); }
+                        catch (e) { toast(e.message); }
+                    },
+                });
+            } else {
+                renderAll();
             }
         }
 
@@ -599,8 +649,8 @@
         }
 
         async function withPending(fn) {
-            pendingOther++;
-            try { return await fn(); } finally { pendingOther--; }
+            pendingOther++; changeEpoch++;
+            try { return await fn(); } finally { pendingOther--; changeEpoch++; }
         }
 
         async function toggleLock(cardId) {
