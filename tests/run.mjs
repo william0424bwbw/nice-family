@@ -293,10 +293,19 @@ async function runHelperTests() {
     eq((await call('DELETE', `/api/cards/${mine.id}`, undefined, zhen)).status, 200);
   });
 
+  await test('秘書可以按「確定」收合、「展開」打開卡片', async () => {
+    const c = await cardByName('圈詞');
+    eq((await call('PATCH', `/api/cards/${c.id}`, { locked: true }, fox)).status, 200);
+    eq((await cardByName('圈詞')).locked, true);
+    eq((await call('PATCH', `/api/cards/${c.id}`, { locked: false }, fox)).status, 200);
+    eq((await cardByName('圈詞')).locked, false);
+    eq((await call('PATCH', `/api/cards/${c.id}`, { locked: true }, null)).status, 401, '沒登入不能按');
+  });
+
   await test('秘書不能用老師的功能', async () => {
     const c = await cardByName('國習');
     for (const [m, p, body] of [
-      ['POST', '/api/cards/clear', { kind: 'daily' }], ['GET', '/api/trash'], ['POST', '/api/cards/order', { kind: 'daily', track: 'math', ids: [c.id] }], ['PATCH', `/api/cards/${c.id}`, { locked: false }],
+      ['POST', '/api/cards/clear', { kind: 'daily' }], ['GET', '/api/trash'], ['POST', '/api/cards/order', { kind: 'daily', track: 'math', ids: [c.id] }], ['PATCH', `/api/cards/${c.id}`, { priority: 1 }], ['PATCH', `/api/cards/${c.id}`, { locked: true, priority: 1 }],
       ['POST', `/api/cards/${c.id}/restore`], ['POST', '/api/albums', { name: 'x', url: 'https://a' }], ['GET', '/api/accounts'],
       ['PATCH', `/api/accounts/${foxId}`, { password: 'random' }],
     ]) eq((await call(m, p, body, fox)).status, 403, `${m} ${p}`);

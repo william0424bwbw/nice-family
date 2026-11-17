@@ -390,6 +390,10 @@ async function undoSeat(db: D1Database, actor: Actor, cardId: number, seat: numb
 }
 
 async function updateCard(db: D1Database, actor: Actor, cardId: number, body: Record<string, unknown>, now: number) {
+  // 小秘書只能收合／展開（locked 只影響畫面顯示，不動登記資料）
+  if (actor.role !== 'teacher' && Object.keys(body).some(k => k !== 'locked')) {
+    throw new HttpError(403, '這個功能只有老師可以使用');
+  }
   const sets: string[] = [];
   const binds: unknown[] = [];
   if (body.locked !== undefined) {
@@ -661,6 +665,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
 
   m = path.match(/^\/api\/cards\/(\d+)$/);
   if (m && method === 'DELETE') return json(await removeCard(db, requireActor(actor), idParam(m[1]), now));
+  if (m && method === 'PATCH') return json(await updateCard(db, requireActor(actor), idParam(m[1]), await readBody(request), now));
 
   // 以下只有老師
   const teacher = requireTeacher(actor);
@@ -668,7 +673,6 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   if (method === 'GET' && path === '/api/trash') return json(await getTrash(db, now));
   if (method === 'POST' && path === '/api/cards/order') return json(await orderCards(db, teacher, await readBody(request), now));
   if (method === 'POST' && path === '/api/cards/clear') return json(await clearCards(db, teacher, await readBody(request), now));
-  if (m && method === 'PATCH') return json(await updateCard(db, teacher, idParam(m[1]), await readBody(request), now));
 
   m = path.match(/^\/api\/cards\/(\d+)\/restore$/);
   if (m && method === 'POST') return json(await restoreCard(db, teacher, idParam(m[1]), now));

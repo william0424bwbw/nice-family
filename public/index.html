@@ -715,11 +715,12 @@
                     grip.addEventListener('pointerdown', e => startDrag(e, box, kind));
                     grip.addEventListener('contextmenu', e => e.preventDefault());
                     actions.appendChild(grip);
-                    const lockBtn = el('button', 'btn-lock' + (card.locked ? ' locked' : ''), card.locked ? '🔓' : '🔒');
-                    lockBtn.title = card.locked ? '顯示已完成的人' : '隱藏已完成的人';
-                    lockBtn.onclick = () => toggleLock(card.id);
-                    actions.appendChild(lockBtn);
                 }
+                // 登記完按「確定」：已交的人收起來，只留下沒交的；要再登記就按「展開」
+                const lockBtn = el('button', 'btn-lock' + (card.locked ? ' locked' : ''), card.locked ? '✏️ 展開' : '✅ 確定');
+                lockBtn.title = card.locked ? '展開全部座號，繼續登記' : '登記完成：只留下沒交的人';
+                lockBtn.onclick = () => toggleLock(card.id);
+                actions.appendChild(lockBtn);
                 if (canRemoveCard(card)) {
                     const delBtn = el('button', 'btn-delete', '🗑️');
                     delBtn.title = isTeacher() ? '取下（可以復原）' : '取下我剛建立的卡片';
