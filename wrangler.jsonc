@@ -15,7 +15,7 @@
       "binding": "DB",
       "database_name": "nice-family-db",
       // 建立正式資料庫後（bash scripts/bootstrap.sh）會自動換成真正的 ID
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "4f995b84-fa5b-4fa2-a639-2fdff04ab848",
       "migrations_dir": "migrations"
     }
   ],

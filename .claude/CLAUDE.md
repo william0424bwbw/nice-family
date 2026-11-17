@@ -13,7 +13,7 @@
 - `src/worker/index.ts`：API；`GET /api/board` 公開，其餘寫入要 `Authorization: Bearer <ADMIN_TOKEN>`
 - D1：`cards`（daily／exam，軟刪除 `deleted_at`）、`card_status`（每位學生一格，沒有資料 = 0 已完成）、`albums`、`audit_log`、`settings`（`student_count`）
 - 狀態：0 已完成、1 未交、2 再催、3 嚴重；點一下 +1，長按歸零。再開同名日常作業時，上一張未交的人自動升級
-- 根目錄 `index.html` 是舊版（Google Apps Script），GitHub Pages 還在使用；切換後改成跳轉到新網址
+- 根目錄 `index.html` 是 GitHub Pages 的跳轉頁（舊網址 → 新網址）；舊版程式碼在 `legacy/index.html` 只當參考
 
 ## 常用指令
 - 本機開發：`npm run dev` → http://localhost:8787/?mode=teacher（密碼在 `.dev.vars`，預設 dev）
