@@ -537,6 +537,32 @@ async function newPassword(db: D1Database, env: Env, exceptId: number | null, gi
   throw new HttpError(500, '無法產生密碼，請再試一次');
 }
 
+// 小秘書改自己的密碼：要先輸入舊密碼（避免別人拿她登入中的平板改掉）
+async function changeMyPassword(request: Request, db: D1Database, env: Env, actor: Actor, body: Record<string, unknown>, now: number) {
+  if (actor.role !== 'helper') throw new HttpError(400, '老師密碼請用部署設定修改');
+  const acc = await db.prepare('SELECT id, salt, password_hash FROM accounts WHERE name = ? AND active = 1').bind(actor.name)
+    .first<{ id: number; salt: string; password_hash: string }>();
+  if (!acc) throw new HttpError(404, '找不到這個帳號');
+  const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
+  if (!safeEqual(await sha256(acc.salt + oldPassword), acc.password_hash)) {
+    // 舊密碼打錯也算一次密碼錯誤（一直猜一樣會被擋）
+    const ip = request.headers.get('CF-Connecting-IP') || 'local';
+    await db.prepare('INSERT INTO auth_failures (ip, at) VALUES (?, ?)').bind(ip, now).run();
+    throw new HttpError(400, '舊密碼不正確');
+  }
+  const password = typeof body.newPassword === 'string' ? body.newPassword : '';
+  if (!/^\S{6,32}$/.test(password)) throw new HttpError(400, '新密碼要 6～32 個字，不能有空白');
+  if (password === oldPassword) throw new HttpError(400, '新密碼和舊密碼一樣');
+  await checkPassword(db, env, password, acc.id);
+  const salt = randomSalt();
+  await db.batch([
+    db.prepare('UPDATE accounts SET salt = ?, password_hash = ?, updated_at = ? WHERE id = ?')
+      .bind(salt, await sha256(salt + password), now, acc.id),
+    audit(db, now, actor, 'account.password.self', { id: acc.id }),
+  ]);
+  return { ok: true };
+}
+
 async function listAccounts(db: D1Database) {
   const r = await db.prepare('SELECT id, name, short, active, created_at AS createdAt FROM accounts ORDER BY id').all();
   return { accounts: r.results.map(a => ({ ...a, active: a.active === 1 })) };
@@ -624,6 +650,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const actor = await authenticate(request, env, now);
 
   if (method === 'POST' && path === '/api/auth') return json(requireActor(actor));
+  if (method === 'POST' && path === '/api/me/password') return json(await changeMyPassword(request, db, env, requireActor(actor), await readBody(request), now));
   if (method === 'POST' && path === '/api/cards') return json(await createCard(db, requireActor(actor), await readBody(request), now), 201);
 
   let m = path.match(/^\/api\/cards\/(\d+)\/seats\/(\d+)$/);

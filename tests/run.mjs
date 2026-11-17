@@ -302,6 +302,20 @@ async function runHelperTests() {
     ]) eq((await call(m, p, body, fox)).status, 403, `${m} ${p}`);
   });
 
+  await test('秘書可以改自己的密碼（要輸入舊密碼）', async () => {
+    const change = (body, token = zhen) => call('POST', '/api/me/password', body, token);
+    eq((await change({ oldPassword: 'nope', newPassword: 'zhen-new-1' })).status, 400, '舊密碼錯');
+    eq((await change({ oldPassword: zhen, newPassword: '12345' })).status, 400, '太短');
+    eq((await change({ oldPassword: zhen, newPassword: 'has space' })).status, 400, '有空白');
+    eq((await change({ oldPassword: zhen, newPassword: fox })).status, 400, '和別人重複');
+    eq((await change({ oldPassword: zhen, newPassword: TOKEN })).status, 400, '和老師相同');
+    eq((await change({ oldPassword: TOKEN, newPassword: 'teacher-x' }, TOKEN)).status, 400, '老師不能用這個');
+    eq((await change({ oldPassword: zhen, newPassword: 'zhen-new-1' })).status, 200);
+    eq((await call('POST', '/api/auth', undefined, 'zhen-new-1')).data.name, '棒棒蓁');
+    zhen = 'zhen-new-1';
+    eq((await change({ oldPassword: zhen, newPassword: 'zhen-new-2' }, null)).status, 401, '沒登入不能改');
+  });
+
   await test('老師改名、重設密碼、停用帳號', async () => {
     const r = await call('PATCH', `/api/accounts/${foxId}`, { name: '狐狸', password: 'random' });
     eq(r.status, 200);

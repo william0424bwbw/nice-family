@@ -209,7 +209,7 @@
 
     <div class="title-area">
         <h1>📋 NICE家族即時親師數位看板</h1>
-        <div class="subtitle"><span id="viewModeHint">正在連線…</span><button id="logoutBtn" style="display:none" onclick="logout()">登出</button></div>
+        <div class="subtitle"><span id="viewModeHint">正在連線…</span><button id="myPwBtn" style="display:none" onclick="openMyPassword()">🔑 改密碼</button><button id="logoutBtn" style="display:none" onclick="logout()">登出</button></div>
 
         <div class="top-search-zone">
             <input type="number" class="search-input" id="searchNo" placeholder="座號" min="1" max="25" inputmode="numeric">
@@ -320,6 +320,22 @@
             <div class="dialog-actions">
                 <button type="button" class="btn-close" style="background:#3b3b4f" onclick="cancelLogin()">以家長身分瀏覽</button>
                 <button type="submit" class="btn-add" id="loginBtn">登入</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 小秘書改自己的密碼 -->
+    <div class="overlay" id="myPwOverlay" onclick="if (event.target === this) closeMyPassword()">
+        <form class="dialog" onsubmit="submitMyPassword(event)">
+            <h2>🔑 改我的密碼</h2>
+            <input type="password" class="input-style" id="myPwOld" placeholder="舊密碼" autocomplete="current-password">
+            <input type="password" class="input-style" id="myPwNew" placeholder="新密碼（至少 6 個字）" autocomplete="new-password">
+            <input type="password" class="input-style" id="myPwNew2" placeholder="再輸入一次新密碼" autocomplete="new-password">
+            <div class="trash-meta" style="margin-bottom:8px">改好後請記下來；忘記的話請老師幫你重設。</div>
+            <div class="dialog-error" id="myPwError"></div>
+            <div class="dialog-actions">
+                <button type="button" class="btn-close" style="background:#3b3b4f" onclick="closeMyPassword()">取消</button>
+                <button type="submit" class="btn-add" id="myPwBtnSave">確定修改</button>
             </div>
         </form>
     </div>
@@ -523,6 +539,38 @@
             toast('已登出', true);
         }
 
+        // ---------- 小秘書改自己的密碼 ----------
+        function openMyPassword() {
+            for (const id of ['myPwOld', 'myPwNew', 'myPwNew2']) document.getElementById(id).value = '';
+            document.getElementById('myPwError').textContent = '';
+            document.getElementById('myPwOverlay').classList.add('show');
+            setTimeout(() => document.getElementById('myPwOld').focus(), 50);
+        }
+        function closeMyPassword() {
+            document.getElementById('myPwOverlay').classList.remove('show');
+        }
+        async function submitMyPassword(ev) {
+            ev.preventDefault();
+            const oldPassword = document.getElementById('myPwOld').value;
+            const newPassword = document.getElementById('myPwNew').value;
+            const err = document.getElementById('myPwError');
+            if (!oldPassword) { err.textContent = '請輸入舊密碼'; return; }
+            if (newPassword.length < 6 || /\s/.test(newPassword)) { err.textContent = '新密碼要至少 6 個字，不能有空白'; return; }
+            if (newPassword !== document.getElementById('myPwNew2').value) { err.textContent = '兩次輸入的新密碼不一樣'; return; }
+            const btn = document.getElementById('myPwBtnSave');
+            btn.disabled = true;
+            try {
+                await api('POST', '/api/me/password', { oldPassword, newPassword });
+                setAuth({ ...auth, token: newPassword });   // 這台裝置直接換成新密碼，不用重新登入
+                closeMyPassword();
+                toast('密碼已修改，下次登入請用新密碼', true);
+            } catch (e) {
+                err.textContent = e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         function setAuth(a) {
             auth = a && a.token ? { token: a.token, role: a.role, name: a.name || '', short: a.short || '' } : { token: '', role: null, name: '', short: '' };
             saveAuth();
@@ -530,6 +578,8 @@
             document.body.classList.toggle('role-teacher', isTeacher());
             document.body.classList.toggle('role-helper', isHelper());
             document.getElementById('logoutBtn').style.display = loggedIn() ? 'inline-block' : 'none';
+            document.getElementById('myPwBtn').style.display = isHelper() ? 'inline-block' : 'none';
+            if (!isHelper()) closeMyPassword();
             document.getElementById('viewModeHint').textContent = isTeacher()
                 ? '🔒 大熊老師管理模式（點一下升一級，長按銷帳；多台裝置可以同時使用）'
                 : isHelper()
