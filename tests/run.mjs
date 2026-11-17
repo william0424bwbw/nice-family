@@ -147,15 +147,15 @@ async function runTests() {
 
   await test('清空後全部可以復原，狀態還在', async () => {
     const before = await board();
+    // 加一張全班完成的卡
+    eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '乙本' })).status, 201);
+    const done = await cardByName('乙本');
     const r = await call('POST', '/api/cards/clear', { kind: 'daily' });
-    eq(r.data.cleared, before.daily.length);
-    eq((await board()).daily.length, 0);
-    const trash = (await call('GET', '/api/trash')).data;
-    for (const c of trash.cards.filter(c => c.reason === 'clear')) {
-      eq((await call('POST', `/api/cards/${c.id}/restore`)).status, 200);
-    }
+    eq([r.data.cleared, r.data.kept], [1, before.daily.length], '只收起全班完成的');
     const after = await board();
-    eq(after.daily.map(c => [c.id, c.statuses]), before.daily.map(c => [c.id, c.statuses]));
+    eq(after.daily.map(c => [c.id, c.statuses]), before.daily.map(c => [c.id, c.statuses]), '欠交的卡片保留');
+    eq((await call('POST', `/api/cards/${done.id}/restore`)).status, 200);
+    eq((await call('DELETE', `/api/cards/${done.id}`)).status, 200);
   });
 
   await test('相簿：新增、擋掉不安全網址、刪除後復原', async () => {
@@ -176,18 +176,118 @@ async function runTests() {
     eq((await call('POST', `/api/cards/${c.id}/restore`)).status, 200);
   });
 
-  await test('密碼錯誤太多次會被暫時擋下，正確密碼不受影響', async () => {
-    const codes = [];
-    for (let i = 0; i < 8; i++) codes.push((await call('POST', '/api/auth', undefined, `guess${i}`)).status);
-    if (!codes.includes(429)) throw new Error(`沒有被擋下：${codes.join(',')}`);
-    eq((await call('POST', '/api/auth')).status, 200);
-  });
+  await runHelperTests();
 
   await test('網頁可以開啟', async () => {
     const res = await fetch(BASE + '/');
     eq(res.status, 200);
     const html = await res.text();
     if (!html.includes('NICE家族')) throw new Error('首頁內容不正確');
+  });
+}
+
+async function runHelperTests() {
+  let fox; // 小狐狸的密碼
+  let zhen;
+  let foxId;
+  const seat = async (cardId, s, status, token) => call('PUT', `/api/cards/${cardId}/seats/${s}`, { status }, token);
+  const undo = async (cardId, s, token) => call('POST', `/api/cards/${cardId}/seats/${s}/undo`, undefined, token);
+  const authed = async (token = TOKEN) => (await call('GET', '/api/board', undefined, token)).data;
+
+  await test('老師新增小秘書，密碼自動產生 6 位數', async () => {
+    const a = await call('POST', '/api/accounts', { name: '小狐狸', short: '狐' });
+    eq(a.status, 201);
+    if (!/^\d{6}$/.test(a.data.password)) throw new Error(`密碼是 ${a.data.password}`);
+    fox = a.data.password; foxId = a.data.id;
+    const b = await call('POST', '/api/accounts', { name: '棒棒蓁' });
+    zhen = b.data.password;
+    eq((await call('POST', '/api/accounts', { name: '小狐狸' })).status, 409);
+    eq((await call('POST', '/api/accounts', { name: '重複密碼', password: fox })).status, 400);
+    const list = (await call('GET', '/api/accounts')).data.accounts;
+    eq(list.map(x => [x.name, x.short, x.active]), [['小狐狸', '狐', true], ['棒棒蓁', '蓁', true]]);
+    eq((await call('POST', '/api/auth', undefined, fox)).data, { role: 'helper', name: '小狐狸', short: '狐' });
+  });
+
+  await test('秘書可以新增卡片、往上登記；不能銷帳或往下調', async () => {
+    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '圈詞' }, fox);
+    eq(r.status, 201);
+    const c = await cardByName('圈詞');
+    eq((await seat(c.id, 7, 1, fox)).status, 200);
+    eq((await seat(c.id, 7, 2, fox)).status, 200);
+    eq((await seat(c.id, 7, 1, fox)).status, 403);
+    eq((await seat(c.id, 7, 0, fox)).status, 403);
+    eq((await seat(c.id, 7, 3, zhen)).status, 200, '另一位秘書可以再往上');
+    eq((await cardByName('圈詞')).statuses[6], 3);
+  });
+
+  await test('秘書只能取消自己的登記，一次還原到她開始點之前', async () => {
+    const c = await cardByName('圈詞');
+    eq((await undo(c.id, 7, fox)).status, 403, '最後是棒棒蓁點的');
+    eq((await undo(c.id, 7, zhen)).data.status, 2, '還原成棒棒蓁點之前的 2');
+    eq((await undo(c.id, 7, zhen)).status, 403, '已經不是她的了');
+    // 小狐狸連點 0 → 1 → 2 → 3，取消一次回到 0
+    await seat(c.id, 9, 1, fox); await seat(c.id, 9, 2, fox); await seat(c.id, 9, 3, fox);
+    eq((await undo(c.id, 9, fox)).data.status, 0);
+    eq((await cardByName('圈詞')).statuses[8], 0);
+    eq((await cardByName('圈詞'))?.id, c.id, '秘書取消不會讓卡片自動收起');
+  });
+
+  await test('看得到誰登記的：只有登入的人', async () => {
+    const c = await cardByName('圈詞');
+    await seat(c.id, 3, 1, fox);
+    await seat(c.id, 4, 1, fox);
+    const pub = (await board()).daily.find(x => x.id === c.id);
+    eq([pub.marks, pub.createdBy, (await board()).me], [undefined, undefined, null]);
+    const b = await authed(fox);
+    const mine = b.daily.find(x => x.id === c.id);
+    eq([b.me.name, mine.createdBy, mine.marks['3'].by, mine.marks['3'].short], ['小狐狸', '小狐狸', '小狐狸', '狐']);
+    eq(mine.marks['7'], undefined, '取消過的格子不再顯示登記人');
+    eq(b.undoMs, 300000);
+  });
+
+  await test('老師銷帳秘書登記的格子後，秘書就不能取消了', async () => {
+    const c = await cardByName('圈詞');
+    eq((await seat(c.id, 3, 0)).data.removed, false, '還有 04 號沒交，卡片保留');
+    eq((await undo(c.id, 3, fox)).status, 403);
+  });
+
+  await test('秘書只能取下自己 5 分鐘內新增的卡片', async () => {
+    const teacherCard = await cardByName('國習');
+    eq((await call('DELETE', `/api/cards/${teacherCard.id}`, undefined, fox)).status, 403);
+    await call('POST', '/api/cards', { kind: 'exam', subject: '自然', unit: '點錯的', defaultDebt: true }, zhen);
+    const mine = await cardByName('自然-點錯的');
+    eq((await call('DELETE', `/api/cards/${mine.id}`, undefined, fox)).status, 403, '不是小狐狸建的');
+    eq((await call('DELETE', `/api/cards/${mine.id}`, undefined, zhen)).status, 200);
+  });
+
+  await test('秘書不能用老師的功能', async () => {
+    const c = await cardByName('國習');
+    for (const [m, p, body] of [
+      ['POST', '/api/cards/clear', { kind: 'daily' }], ['GET', '/api/trash'], ['PATCH', `/api/cards/${c.id}`, { locked: false }],
+      ['POST', `/api/cards/${c.id}/restore`], ['POST', '/api/albums', { name: 'x', url: 'https://a' }], ['GET', '/api/accounts'],
+      ['PATCH', `/api/accounts/${foxId}`, { password: 'random' }],
+    ]) eq((await call(m, p, body, fox)).status, 403, `${m} ${p}`);
+  });
+
+  await test('老師改名、重設密碼、停用帳號', async () => {
+    const r = await call('PATCH', `/api/accounts/${foxId}`, { name: '狐狸', password: 'random' });
+    eq(r.status, 200);
+    eq((await call('POST', '/api/auth', undefined, fox)).status, 401, '舊密碼不能用');
+    const fox2 = r.data.password;
+    eq((await call('POST', '/api/auth', undefined, fox2)).data.name, '狐狸');
+    const c = await cardByName('圈詞');
+    eq((await authed()).daily.find(x => x.id === c.id).createdBy, '狐狸', '登記紀錄跟著改名');
+    eq((await call('PATCH', `/api/accounts/${foxId}`, { active: false })).status, 200);
+    eq((await call('POST', '/api/auth', undefined, fox2)).status, 401, '停用後不能登入');
+  });
+
+  // 放最後：會讓這個 IP 被擋 10 分鐘
+  await test('密碼錯誤太多次會被擋下，之後連正確密碼也先擋', async () => {
+    const codes = [];
+    for (let i = 0; i < 12; i++) codes.push((await call('POST', '/api/auth', undefined, `guess${i}`)).status);
+    if (!codes.includes(429)) throw new Error(`沒有被擋下：${codes.join(',')}`);
+    eq((await call('POST', '/api/auth')).status, 429);
+    eq((await board()).studentCount, 25, '家長看板不受影響');
   });
 }
 

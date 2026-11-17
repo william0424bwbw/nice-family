@@ -156,6 +156,49 @@
         .toast.ok { background: #2a9d8f; }
         .toast.show { display: block; }
         .toast-action { margin-left: 12px; background: #fff; color: #1e1e24; border: none; border-radius: 6px; padding: 4px 12px; font-weight: bold; cursor: pointer; }
+
+        /* 只有老師看得到的按鈕 */
+        body:not(.role-teacher) .teacher-only { display: none !important; }
+        .btn-counter { background-color: #f4a261; color: #1e1e24; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+        .btn-helpers { background-color: #7209b7; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+
+        /* 誰登記的小徽章（小秘書） */
+        .student-node { position: relative; }
+        .mark-badge { position: absolute; top: 1px; right: 1px; font-size: 0.55rem; line-height: 1; background: rgba(0,0,0,0.6); color: #fff; border-radius: 4px; padding: 1px 2px; pointer-events: none; font-weight: bold; }
+        .student-node.status-3 .mark-badge { top: -3px; right: -3px; }
+
+        .dialog.wide { max-width: 540px; }
+
+        /* 補交櫃台 */
+        .counter-seats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+        .counter-seat { min-height: 46px; border: none; border-radius: 8px; background: #3b3b4f; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+        .counter-seat small { font-size: 0.7rem; color: #fccc52; }
+        .counter-seat.zero { opacity: 0.35; }
+        .counter-seat.zero small { color: #b3b3cc; }
+        .counter-seat.selected { background: #4cc9f0; color: #1e1e24; opacity: 1; }
+        .counter-seat.selected small { color: #1e1e24; }
+        .counter-title { font-size: 1.05rem; font-weight: bold; color: #fccc52; margin: 4px 0 8px 0; }
+        .counter-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px dashed #3e3e50; }
+        .counter-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+        .counter-dot.s1 { background: var(--level-1); } .counter-dot.s2 { background: var(--level-2); } .counter-dot.s3 { background: var(--level-3); }
+        .counter-name { flex-grow: 1; min-width: 0; word-break: break-all; }
+        .counter-name .trash-meta { display: block; }
+        .btn-done { background: #2a9d8f; color: white; border: none; border-radius: 8px; padding: 8px 14px; min-height: 40px; font-weight: bold; cursor: pointer; flex-shrink: 0; font-size: 0.95rem; }
+        .btn-done:disabled { opacity: 0.5; cursor: wait; }
+        .counter-all { width: 100%; margin-top: 12px; }
+        .counter-clean { text-align: center; color: #2a9d8f; font-weight: bold; font-size: 1.1rem; padding: 16px 0; }
+
+        /* 小秘書管理 */
+        .acct-row { padding: 10px 0; border-bottom: 1px dashed #3e3e50; }
+        .acct-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .acct-badge { background: #4cc9f0; color: #1e1e24; border-radius: 6px; padding: 2px 6px; font-weight: bold; }
+        .acct-off { color: #ef4444; font-size: 0.8rem; }
+        .acct-on { color: #2a9d8f; font-size: 0.8rem; }
+        .acct-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .acct-actions button { background: #3b3b4f; color: white; border: 1px solid #4e4e62; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-weight: bold; }
+        .pw-box { background: #1e1e24; border: 2px dashed #fccc52; border-radius: 10px; padding: 12px; margin: 10px 0; text-align: center; }
+        .pw-box .pw { font-size: 2rem; font-weight: bold; letter-spacing: 0.2em; color: #fccc52; user-select: text; -webkit-user-select: text; font-family: Consolas, monospace; }
+        .pw-box .trash-meta { margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -201,8 +244,10 @@
         <div class="teacher-tools-row">
             <button class="btn-sync-cloud" onclick="loadBoard(true)">🔄 重新整理</button>
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
-            <button class="btn-trash" onclick="openTrash()">♻️ 復原</button>
-            <button class="btn-clear-all" onclick="triggerClear()">🧹 清空日常作業</button>
+            <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
+            <button class="btn-helpers teacher-only" onclick="openAccounts()">👥 小秘書</button>
+            <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
+            <button class="btn-clear-all teacher-only" onclick="triggerClear()">🧹 清空日常作業</button>
         </div>
     </div>
 
@@ -229,8 +274,10 @@
         <div class="teacher-tools-row">
             <button class="btn-sync-cloud" onclick="loadBoard(true)">🔄 重新整理</button>
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
-            <button class="btn-trash" onclick="openTrash()">♻️ 復原</button>
-            <button class="btn-clear-all" onclick="triggerClear()">🧹 清空學期考試</button>
+            <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
+            <button class="btn-helpers teacher-only" onclick="openAccounts()">👥 小秘書</button>
+            <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
+            <button class="btn-clear-all teacher-only" onclick="triggerClear()">🧹 清空學期考試</button>
         </div>
     </div>
 
@@ -243,7 +290,7 @@
         <input type="url" class="input-style" id="photoUrlInput" placeholder="貼上 Google 相簿連結" style="width:200px;">
         <button class="btn-add" id="addPhotoBtn" onclick="addNewPhotoAlbum()">＋ 立即發布相簿</button>
         <div class="teacher-tools-row">
-            <button class="btn-trash" onclick="openTrash()">♻️ 復原</button>
+            <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
         </div>
     </div>
 
@@ -272,8 +319,8 @@
     <!-- 老師登入 -->
     <div class="overlay" id="loginOverlay">
         <form class="dialog" onsubmit="submitLogin(event)">
-            <h2>🔒 老師登入</h2>
-            <input type="password" class="input-style" id="loginPassword" placeholder="老師密碼" autocomplete="current-password">
+            <h2>🔒 老師／小秘書登入</h2>
+            <input type="password" class="input-style" id="loginPassword" placeholder="密碼" autocomplete="current-password">
             <div class="dialog-error" id="loginError"></div>
             <div class="dialog-actions">
                 <button type="button" class="btn-close" style="background:#3b3b4f" onclick="cancelLogin()">以家長身分瀏覽</button>
@@ -291,47 +338,100 @@
         </div>
     </div>
 
+    <!-- 補交櫃台（老師） -->
+    <div class="overlay" id="counterOverlay" onclick="if (event.target === this) closeCounter()">
+        <div class="dialog wide">
+            <h2>🧾 補交櫃台</h2>
+            <div class="trash-meta" style="margin-bottom:8px">點座號，看這位學生所有還沒交的項目</div>
+            <div class="counter-seats" id="counterSeats"></div>
+            <div id="counterList"></div>
+            <div class="dialog-actions" style="margin-top:12px"><button class="btn-close" onclick="closeCounter()">關閉</button></div>
+        </div>
+    </div>
+
+    <!-- 小秘書管理（老師） -->
+    <div class="overlay" id="accountsOverlay" onclick="if (event.target === this) closeAccounts()">
+        <div class="dialog">
+            <h2>👥 小秘書帳號</h2>
+            <div id="accountsPassword"></div>
+            <div id="accountsList">讀取中…</div>
+            <div class="dialog-actions" style="margin-top:12px; justify-content:space-between">
+                <button class="btn-add" onclick="addAccount()">＋ 新增小秘書</button>
+                <button class="btn-close" onclick="closeAccounts()">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
-        const TOKEN_KEY = 'nice-family-teacher-token';
+        const AUTH_KEY = 'nice-family-auth';
+        const LEGACY_TOKEN_KEY = 'nice-family-teacher-token';
         const POLL_MS = 10000;
         const LONG_PRESS_MS = 800;
 
-        let token = '';
-        let isTeacher = false;
+        // 登入身分：role = 'teacher'｜'helper'｜null（家長）
+        let auth = { token: '', role: null, name: '', short: '' };
         let currentMode = 'daily';
-        let board = { studentCount: 25, daily: [], exam: [], albums: [] };
+        let board = { studentCount: 25, daily: [], exam: [], albums: [], me: null, undoMs: 300000 };
         // 送出中的點擊：key = "卡片編號:座號"；送出中時，定時更新不會把畫面蓋回舊狀態
         const pendingSeats = new Set();
         let pendingOther = 0;
         let changeEpoch = 0;
         let lastLoadOk = false;
 
+        const isTeacher = () => auth.role === 'teacher';
+        const isHelper = () => auth.role === 'helper';
+        const loggedIn = () => isTeacher() || isHelper();
+        const undoMs = () => board.undoMs || 300000;
+
         // ---------- 共用 ----------
         function storageGet(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } }
         function storageSet(k, v) { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* 無痕模式 */ } }
         function pad(n) { return String(n).padStart(2, '0'); }
+        function fmtTime(ms) {
+            const d = new Date(ms);
+            return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+        function el(tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text !== undefined) e.textContent = text;
+            return e;
+        }
+
+        function readAuth() {
+            try {
+                const a = JSON.parse(storageGet(AUTH_KEY) || 'null');
+                if (a && a.token) return a;
+            } catch { /* 格式不對就當沒登入 */ }
+            // 舊版只存老師密碼
+            const legacy = storageGet(LEGACY_TOKEN_KEY);
+            return legacy ? { token: legacy, role: 'teacher', name: '老師', short: '' } : null;
+        }
+        function saveAuth() {
+            storageSet(AUTH_KEY, auth.token ? JSON.stringify(auth) : '');
+            storageSet(LEGACY_TOKEN_KEY, '');
+        }
 
         let toastTimer;
         // action：{ label, fn } 在提示上加一個按鈕（例如「復原」）
         function toast(msg, ok, action) {
-            const el = document.getElementById('toast');
-            el.textContent = msg;
+            const t = document.getElementById('toast');
+            t.textContent = msg;
             if (action) {
-                const b = document.createElement('button');
-                b.className = 'toast-action'; b.textContent = action.label;
-                b.onclick = () => { el.className = 'toast'; action.fn(); };
-                el.appendChild(b);
+                const b = el('button', 'toast-action', action.label);
+                b.onclick = () => { t.className = 'toast'; action.fn(); };
+                t.appendChild(b);
             }
-            el.className = 'toast show' + (ok ? ' ok' : '');
+            t.className = 'toast show' + (ok ? ' ok' : '');
             clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => { el.className = 'toast'; }, action ? 8000 : ok ? 2000 : 5000);
+            toastTimer = setTimeout(() => { t.className = 'toast'; }, action ? 8000 : ok ? 2000 : 5000);
         }
 
         async function api(method, path, body) {
             const headers = {};
-            if (token) headers['Authorization'] = 'Bearer ' + token;
+            if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
             if (body !== undefined) headers['Content-Type'] = 'application/json';
             let res;
             try {
@@ -342,14 +442,14 @@
                 throw new Error('網路連線失敗或太慢，請再試一次');
             }
             if (res.status === 429) {
-                const err = new Error('密碼錯誤太多次，請 1 分鐘後再試');
+                const err = new Error('密碼錯誤太多次，請 10 分鐘後再試');
                 err.status = 429;
                 throw err;
             }
             let data = {};
             try { data = await res.json(); } catch { /* 沒有內容 */ }
             if (res.status === 401 && path !== '/api/auth') {
-                showLogin('登入已失效，請重新輸入老師密碼');
+                passwordChanged('登入已失效，請重新輸入密碼');
             }
             if (!res.ok) {
                 const err = new Error(data.error || '儲存失敗（' + res.status + '）');
@@ -359,13 +459,24 @@
             return data;
         }
 
+        // 密碼失效：立刻清掉本機的密碼（之後的輪詢不再帶錯的密碼，避免整個學校的 IP 被鎖），切回家長畫面並請重新登入
+        function passwordChanged(msg) {
+            if (auth.token) setAuth(null);
+            showLogin(msg);
+        }
+
         // ---------- 啟動與登入 ----------
         window.addEventListener('load', () => {
-            const wantTeacher = new URLSearchParams(location.search).get('mode') === 'teacher';
-            token = storageGet(TOKEN_KEY);
-            if (token) verifyToken();
-            else if (wantTeacher) showLogin('');
-            else setTeacher(false);
+            const wantLogin = new URLSearchParams(location.search).get('mode') === 'teacher';
+            const saved = readAuth();
+            if (saved) {
+                // 先用上次的身分顯示，再向伺服器確認
+                setAuth(saved);
+                verifyToken();
+            } else {
+                setAuth(null);
+                if (wantLogin) showLogin('');
+            }
             loadBoard(false);
             setInterval(() => { if (!document.hidden) loadBoard(false); }, POLL_MS);
             document.addEventListener('visibilitychange', () => { if (!document.hidden) loadBoard(false); });
@@ -373,11 +484,11 @@
 
         async function verifyToken() {
             try {
-                await api('POST', '/api/auth');
-                setTeacher(true);
+                const me = await api('POST', '/api/auth');
+                setAuth({ token: auth.token, role: me.role || 'teacher', name: me.name || '老師', short: me.short || '' });
             } catch (e) {
-                if (e.status === 401) { token = ''; storageSet(TOKEN_KEY, ''); showLogin('密碼已變更，請重新登入'); }
-                else { setTeacher(true); toast(e.message); }
+                if (e.status === 401) passwordChanged('密碼已變更，請重新登入');
+                else toast(e.message);
             }
         }
 
@@ -388,42 +499,48 @@
         }
         function cancelLogin() {
             document.getElementById('loginOverlay').classList.remove('show');
-            token = ''; storageSet(TOKEN_KEY, '');
-            setTeacher(false);
+            setAuth(null);
         }
         async function submitLogin(ev) {
             ev.preventDefault();
             const input = document.getElementById('loginPassword');
             const btn = document.getElementById('loginBtn');
-            token = input.value;
+            const prev = auth;
+            auth = { token: input.value, role: null, name: '', short: '' };
             btn.disabled = true;
             try {
-                await api('POST', '/api/auth');
-                storageSet(TOKEN_KEY, token);
+                const me = await api('POST', '/api/auth');
                 input.value = '';
                 document.getElementById('loginOverlay').classList.remove('show');
-                setTeacher(true);
-                toast('登入成功', true);
+                setAuth({ token: auth.token, role: me.role || 'teacher', name: me.name || '老師', short: me.short || '' });
+                toast(isHelper() ? '歡迎 ' + auth.name + '！' : '登入成功', true);
+                loadBoard(false);
             } catch (e) {
-                token = '';
+                auth = prev.role ? prev : { token: '', role: null, name: '', short: '' };
                 document.getElementById('loginError').textContent = e.status === 401 ? '密碼不正確' : e.message;
             } finally {
                 btn.disabled = false;
             }
         }
         function logout() {
-            token = ''; storageSet(TOKEN_KEY, '');
-            setTeacher(false);
+            setAuth(null);
+            loadBoard(false);
             toast('已登出', true);
         }
 
-        function setTeacher(on) {
-            isTeacher = on;
-            document.body.classList.toggle('teacher-mode', on);
-            document.getElementById('logoutBtn').style.display = on ? 'inline-block' : 'none';
-            document.getElementById('viewModeHint').textContent = on
-                ? '🔒 大熊老師管理模式（點一下就會存檔；多台裝置可以同時使用）'
-                : '👁️ 家長/學生即時查閱看板（每 10 秒自動更新）';
+        function setAuth(a) {
+            auth = a && a.token ? { token: a.token, role: a.role, name: a.name || '', short: a.short || '' } : { token: '', role: null, name: '', short: '' };
+            saveAuth();
+            document.body.classList.toggle('teacher-mode', loggedIn());
+            document.body.classList.toggle('role-teacher', isTeacher());
+            document.body.classList.toggle('role-helper', isHelper());
+            document.getElementById('logoutBtn').style.display = loggedIn() ? 'inline-block' : 'none';
+            document.getElementById('viewModeHint').textContent = isTeacher()
+                ? '🔒 大熊老師管理模式（點一下升一級，長按銷帳；多台裝置可以同時使用）'
+                : isHelper()
+                    ? '📝 小秘書 ' + auth.name + ' 登記模式（點一下登記沒交，自己 5 分鐘內的可以長按取消）'
+                    : '👁️ 家長/學生即時查閱看板（每 10 秒自動更新）';
+            if (!isTeacher()) { closeCounter(); closeAccounts(); closeTrash(); }
             updateControlPanelVisibility();
             renderAll();
         }
@@ -432,14 +549,23 @@
         async function loadBoard(manual) {
             if (manual) document.getElementById('loadingHint').style.display = 'block';
             const epoch = changeEpoch;
+            const sentToken = auth.token;
             try {
                 const data = await api('GET', '/api/board');
+                // 帶了密碼卻被當成家長：密碼已被老師改掉或停用
+                if (sentToken && sentToken === auth.token && !data.me) {
+                    passwordChanged('密碼已變更，請重新登入');
+                }
                 // 有點擊還在送出，或讀取期間有修改：這份資料可能是舊的，不要蓋掉畫面（下一輪再更新）
                 if (pendingSeats.size || pendingOther || epoch !== changeEpoch) {
                     if (manual) { document.getElementById('loadingHint').style.display = 'none'; setTimeout(() => loadBoard(false), 1500); }
                     return;
                 }
                 board = data;
+                // 伺服器確認的身分（例如老師改了秘書的名稱）
+                if (data.me && auth.token && (data.me.role !== auth.role || data.me.name !== auth.name || data.me.short !== auth.short)) {
+                    setAuth({ token: auth.token, role: data.me.role, name: data.me.name, short: data.me.short });
+                }
                 lastLoadOk = true;
                 document.getElementById('searchNo').max = board.studentCount;
                 document.getElementById('loadingHint').style.display = 'none';
@@ -465,9 +591,9 @@
         }
 
         function updateControlPanelVisibility() {
-            document.getElementById('controlPanelDaily').style.display = isTeacher && currentMode === 'daily' ? 'flex' : 'none';
-            document.getElementById('controlPanelExam').style.display = isTeacher && currentMode === 'exam' ? 'flex' : 'none';
-            document.getElementById('controlPanelPhotos').style.display = isTeacher && currentMode === 'photos' ? 'flex' : 'none';
+            document.getElementById('controlPanelDaily').style.display = loggedIn() && currentMode === 'daily' ? 'flex' : 'none';
+            document.getElementById('controlPanelExam').style.display = loggedIn() && currentMode === 'exam' ? 'flex' : 'none';
+            document.getElementById('controlPanelPhotos').style.display = isTeacher() && currentMode === 'photos' ? 'flex' : 'none';
         }
 
         // ---------- 畫面 ----------
@@ -480,6 +606,9 @@
         function findCard(id) {
             return board.daily.find(c => c.id === id) || board.exam.find(c => c.id === id);
         }
+        function markOf(card, seat) {
+            return card && card.marks ? card.marks[String(seat)] || null : null;
+        }
 
         let renderQueued = false;
         function renderAll() {
@@ -490,64 +619,69 @@
                 '📘 語文類考試 (國語考卷/聽寫)', '📐 數學與其他考試 (單元卷/總複習)');
             renderPhotoGallery();
             if (document.getElementById('shutUpWall').style.display === 'block') buildShutUpWall();
-        }
-
-        function trackHeader(cls, text) {
-            const h = document.createElement('div');
-            h.className = 'track-header-title ' + cls;
-            h.textContent = text;
-            return h;
+            if (document.getElementById('counterOverlay').classList.contains('show')) renderCounter();
         }
 
         function renderTracks(kind, chId, mathId, chTitle, mathTitle) {
             const ch = document.getElementById(chId);
             const math = document.getElementById(mathId);
-            ch.replaceChildren(trackHeader('track-chinese-title', chTitle));
-            math.replaceChildren(trackHeader('track-math-title', mathTitle));
+            ch.replaceChildren(el('div', 'track-header-title track-chinese-title', chTitle));
+            math.replaceChildren(el('div', 'track-header-title track-math-title', mathTitle));
             for (const card of board[kind]) {
-                const el = buildCard(card, kind);
-                (getSubjectClass(card.name) === 'card-chinese' ? ch : math).appendChild(el);
+                const c = buildCard(card, kind);
+                (getSubjectClass(card.name) === 'card-chinese' ? ch : math).appendChild(c);
             }
         }
 
-        function buildCard(card, kind) {
-            const el = document.createElement('div');
-            el.className = 'homework-card ' + getSubjectClass(card.name);
-            el.dataset.cardId = card.id;
-            if (card.locked || !isTeacher) el.classList.add('hide-green-mode');
+        // 秘書可以取下自己 5 分鐘內建立的卡片
+        function canRemoveCard(card) {
+            if (isTeacher()) return true;
+            return isHelper() && card.createdBy === auth.name && Date.now() - card.createdAt < undoMs();
+        }
 
-            const header = document.createElement('div'); header.className = 'card-header';
-            const title = document.createElement('div'); title.className = 'card-title';
-            title.textContent = (kind === 'exam' ? '📝 ' : '') + card.name;
-            title.title = card.name;
+        function buildCard(card, kind) {
+            const box = el('div', 'homework-card ' + getSubjectClass(card.name));
+            box.dataset.cardId = card.id;
+            if (card.locked || !loggedIn()) box.classList.add('hide-green-mode');
+
+            const header = el('div', 'card-header');
+            const title = el('div', 'card-title', (kind === 'exam' ? '📝 ' : '') + card.name);
+            title.title = card.name + (card.createdBy ? '（' + card.createdBy + ' 建立）' : '');
             header.appendChild(title);
 
-            if (isTeacher) {
-                const actions = document.createElement('div'); actions.className = 'header-actions';
-                const lockBtn = document.createElement('button');
-                lockBtn.className = 'btn-lock' + (card.locked ? ' locked' : '');
-                lockBtn.textContent = card.locked ? '🔓' : '🔒';
-                lockBtn.title = card.locked ? '顯示已完成的人' : '隱藏已完成的人';
-                lockBtn.onclick = () => toggleLock(card.id);
-                const delBtn = document.createElement('button');
-                delBtn.className = 'btn-delete'; delBtn.textContent = '🗑️'; delBtn.title = '取下（可以復原）';
-                delBtn.onclick = () => removeCard(card.id);
-                actions.append(lockBtn, delBtn);
+            if (loggedIn()) {
+                const actions = el('div', 'header-actions');
+                if (isTeacher()) {
+                    const lockBtn = el('button', 'btn-lock' + (card.locked ? ' locked' : ''), card.locked ? '🔓' : '🔒');
+                    lockBtn.title = card.locked ? '顯示已完成的人' : '隱藏已完成的人';
+                    lockBtn.onclick = () => toggleLock(card.id);
+                    actions.appendChild(lockBtn);
+                }
+                if (canRemoveCard(card)) {
+                    const delBtn = el('button', 'btn-delete', '🗑️');
+                    delBtn.title = isTeacher() ? '取下（可以復原）' : '取下我剛建立的卡片';
+                    delBtn.onclick = () => removeCard(card.id);
+                    actions.appendChild(delBtn);
+                }
                 header.appendChild(actions);
             }
-            el.appendChild(header);
+            box.appendChild(header);
 
-            const matrix = document.createElement('div'); matrix.className = 'student-matrix';
+            const matrix = el('div', 'student-matrix');
             for (let s = 1; s <= board.studentCount; s++) {
-                const btn = document.createElement('button');
-                btn.textContent = pad(s);
+                const btn = el('button', '', pad(s));
                 paintNode(btn, card.statuses[s - 1] || 0);
+                const m = markOf(card, s);
+                if (m && (card.statuses[s - 1] || 0) > 0) {
+                    btn.title = m.by + ' ' + fmtTime(m.at) + ' 登記';
+                    if (m.by !== '老師' && m.short) btn.appendChild(el('span', 'mark-badge', m.short));
+                }
                 if (pendingSeats.has(card.id + ':' + s)) btn.classList.add('pending');
-                if (isTeacher) bindNodeEvents(btn, card.id, s);
+                if (loggedIn()) bindNodeEvents(btn, card.id, s);
                 matrix.appendChild(btn);
             }
-            el.appendChild(matrix);
-            return el;
+            box.appendChild(matrix);
+            return box;
         }
 
         function paintNode(btn, status) {
@@ -555,7 +689,8 @@
             btn.className = 'student-node' + (status > 0 ? ' status-' + status : '');
         }
 
-        // 點一下：狀態 +1（綠 → 橘 → 紅 → 紫 → 綠）；長按：直接變回綠色
+        // 點一下：升一級（綠 → 橘 → 紅 → 紫，到紫色就停住，不會繞回綠色）
+        // 長按：老師 → 銷帳（變回綠色）；小秘書 → 取消自己 5 分鐘內的登記
         // 手指按住期間不重畫畫面（重畫會換掉按鈕，造成漏點或長按計時器取消不掉）
         let press = null;      // 目前按住的格子
         let lastPress = null;  // 最近一次按壓（click 用來判斷是不是長按）
@@ -570,11 +705,7 @@
             btn.addEventListener('pointerdown', () => {
                 endPress();
                 const p = { cardId, seat, long: false };
-                p.timer = setTimeout(() => {
-                    p.long = true;
-                    btn.className = 'student-node exploding';
-                    setTimeout(() => setSeat(cardId, seat, 0), 400);
-                }, LONG_PRESS_MS);
+                p.timer = setTimeout(() => { p.long = true; onLongPress(btn, cardId, seat); }, LONG_PRESS_MS);
                 press = p; lastPress = p;
             });
             btn.addEventListener('pointerleave', () => { if (press && press.cardId === cardId && press.seat === seat) endPress(); });
@@ -584,64 +715,126 @@
                 const card = findCard(cardId); if (!card) return;
                 const now = card.statuses[seat - 1] || 0;
                 if (btn.closest('.hide-green-mode') && now === 0) return;
-                setSeat(cardId, seat, (now + 1) % 4);
+                if (now >= 3) {
+                    toast(isTeacher() ? '已經是最高等級（交了請長按銷帳）' : '已經是最高等級', true);
+                    return;
+                }
+                setSeat(cardId, seat, now + 1);
             });
+        }
+
+        function onLongPress(btn, cardId, seat) {
+            const card = findCard(cardId); if (!card) return;
+            if (isTeacher()) {
+                btn.className = 'student-node exploding';
+                setTimeout(() => setSeat(cardId, seat, 0), 400);
+                return;
+            }
+            const m = markOf(card, seat);
+            const status = card.statuses[seat - 1] || 0;
+            if (status > 0 && m && m.by === auth.name && Date.now() - m.at < undoMs()) {
+                undoSeat(cardId, seat);
+            } else {
+                toast('只有老師可以銷帳；自己 5 分鐘內登記的可以長按取消');
+            }
         }
 
         // 同一格一次只送一個請求：連點時先改畫面，等上一個存好再送「最後的狀態」
         // （舊版連點會同時送出好幾個請求，到達順序不一定，會存成中間的狀態）
+        // 回傳 Promise，補交櫃台的「全部交了」會依序等待
         const seatSync = new Map();
-        async function setSeat(cardId, seat, status) {
-            const card = findCard(cardId); if (!card) return;
+        function setSeat(cardId, seat, status) {
+            const card = findCard(cardId); if (!card) return Promise.resolve();
             const key = cardId + ':' + seat;
             let st = seatSync.get(key);
-            if (!st) { st = { want: status, saved: card.statuses[seat - 1] || 0, sending: false }; seatSync.set(key, st); }
+            if (!st) { st = { want: status, saved: card.statuses[seat - 1] || 0, sending: false, done: null }; seatSync.set(key, st); }
             st.want = status;
             card.statuses[seat - 1] = status;
             pendingSeats.add(key);
             changeEpoch++;
             renderAll();
-            if (st.sending) return;
+            if (st.sending) return st.done;
             st.sending = true;
-            let removed = false;
-            try {
-                while (st.want !== st.saved) {
-                    const target = st.want;
-                    const r = await api('PUT', '/api/cards/' + cardId + '/seats/' + seat, { status: target });
-                    st.saved = target;
-                    if (r.removed) { removed = true; break; }
+            st.done = (async () => {
+                let removed = false;
+                try {
+                    while (st.want !== st.saved) {
+                        const target = st.want;
+                        const r = await api('PUT', '/api/cards/' + cardId + '/seats/' + seat, { status: target });
+                        const before = st.saved;
+                        st.saved = target;
+                        updateLocalMark(cardId, seat, before, target);
+                        if (r.removed) { removed = true; break; }
+                    }
+                } catch (e) {
+                    seatSync.delete(key); pendingSeats.delete(key); changeEpoch++;
+                    const c = findCard(cardId);
+                    if (c) c.statuses[seat - 1] = st.saved;
+                    renderAll();
+                    if (e.status === 404 || e.status === 403 || e.status === 409) {
+                        // 被拒絕（例如秘書不能降級、卡片已被取下）：還原這格並重新讀取
+                        toast(e.message);
+                        loadBoard(true);
+                    } else {
+                        toast(pad(seat) + ' 號沒有存到，已恢復成上次存好的狀態：' + e.message);
+                    }
+                    return;
                 }
-            } catch (e) {
                 seatSync.delete(key); pendingSeats.delete(key); changeEpoch++;
-                if (e.status === 404) { toast(e.message); loadBoard(true); return; }
+                if (removed) {
+                    fadeOutCard(cardId);
+                    // 點錯造成全班完成時，可以馬上按「復原」
+                    toast('🎉 「' + card.name + '」全班完成，卡片收起來了', true, isTeacher() ? {
+                        label: '↩ 復原',
+                        fn: async () => {
+                            try { await withPending(() => api('POST', '/api/cards/' + cardId + '/restore')); await loadBoard(false); toast('已復原「' + card.name + '」', true); }
+                            catch (e) { toast(e.message); }
+                        },
+                    } : undefined);
+                } else {
+                    renderAll();
+                }
+            })();
+            return st.done;
+        }
+
+        // 存好後先在本機標上「誰登記的」，不用等下一次讀取
+        function updateLocalMark(cardId, seat, before, after) {
+            const c = findCard(cardId); if (!c) return;
+            if (!c.marks) c.marks = {};
+            if (after === 0) delete c.marks[String(seat)];
+            else if (after > before) c.marks[String(seat)] = { by: auth.name || '老師', short: auth.short || '', at: Date.now() };
+        }
+
+        // 小秘書取消自己 5 分鐘內的登記（由伺服器還原成登記前的狀態）
+        async function undoSeat(cardId, seat) {
+            const key = cardId + ':' + seat;
+            if (seatSync.has(key) || pendingSeats.has(key)) { toast('這格還在存檔，請稍候再試'); return; }
+            pendingSeats.add(key); changeEpoch++;
+            renderAll();
+            try {
+                const r = await api('POST', '/api/cards/' + cardId + '/seats/' + seat + '/undo');
                 const c = findCard(cardId);
-                if (c) c.statuses[seat - 1] = st.saved;
-                renderAll();
-                toast(pad(seat) + ' 號沒有存到，已恢復成上次存好的狀態：' + e.message);
-                return;
-            }
-            seatSync.delete(key); pendingSeats.delete(key); changeEpoch++;
-            if (removed) {
-                fadeOutCard(cardId);
-                // 點錯造成全班完成時，可以馬上按「復原」
-                toast('🎉 「' + card.name + '」全班完成，卡片收起來了', true, {
-                    label: '↩ 復原',
-                    fn: async () => {
-                        try { await withPending(() => api('POST', '/api/cards/' + cardId + '/restore')); await loadBoard(false); toast('已復原「' + card.name + '」', true); }
-                        catch (e) { toast(e.message); }
-                    },
-                });
-            } else {
+                if (c) {
+                    c.statuses[seat - 1] = r.status || 0;
+                    if (c.marks) delete c.marks[String(seat)];
+                }
+                toast('已取消 ' + pad(seat) + ' 號的登記', true);
+            } catch (e) {
+                toast(e.message);
+            } finally {
+                pendingSeats.delete(key); changeEpoch++;
                 renderAll();
             }
+            loadBoard(false);
         }
 
         function fadeOutCard(cardId) {
-            const el = document.querySelector('[data-card-id="' + cardId + '"]');
+            const node = document.querySelector('[data-card-id="' + cardId + '"]');
             board.daily = board.daily.filter(c => c.id !== cardId);
             board.exam = board.exam.filter(c => c.id !== cardId);
-            if (el) {
-                el.classList.add('fade-out');
+            if (node) {
+                node.classList.add('fade-out');
                 setTimeout(renderAll, 400);
             } else {
                 renderAll();
@@ -664,11 +857,23 @@
 
         async function removeCard(cardId) {
             const card = findCard(cardId); if (!card) return;
-            if (!confirm('確定要取下「' + card.name + '」嗎？（之後可以從 ♻️ 復原找回來）')) return;
+            const owing = card.statuses.filter(s => s > 0).length;
+            let msg;
+            if (isTeacher()) {
+                msg = '確定要取下「' + card.name + '」嗎？';
+                if (owing) msg += '\n\n這張卡還有 ' + owing + ' 人沒交，取下後他們的欠交也會一起收起來（可以從 ♻️ 復原找回）';
+                else msg += '（之後可以從 ♻️ 復原找回來）';
+            } else {
+                msg = '確定要取下你剛建立的「' + card.name + '」嗎？';
+            }
+            if (!confirm(msg)) return;
             try {
                 await withPending(() => api('DELETE', '/api/cards/' + cardId));
                 fadeOutCard(cardId);
-            } catch (e) { toast(e.message); }
+            } catch (e) {
+                toast(e.message);
+                if (e.status === 403) loadBoard(true);
+            }
         }
 
         async function postCard(body, btnId) {
@@ -722,16 +927,175 @@
             }
         }
 
+        // 清空：只收起全班都完成的卡片，還有人欠交的保留（欠交要一直記著）
         async function triggerClear() {
             const kind = currentMode === 'exam' ? 'exam' : 'daily';
-            const label = kind === 'exam' ? '學期所有考試' : '日常作業';
-            if (!confirm('確定清空' + label + '？（之後可以從 ♻️ 復原找回來）')) return;
+            if (!confirm('確定清空？只會收起全班都完成的卡片，還有人欠交的會保留')) return;
             try {
                 const r = await withPending(() => api('POST', '/api/cards/clear', { kind }));
-                board[kind] = [];
                 hideWall();
-                renderAll();
-                toast('已清空 ' + r.cleared + ' 張卡片', true);
+                await loadBoard(false);
+                const cleared = r.cleared || 0;
+                const kept = r.kept || 0;
+                toast('收起 ' + cleared + ' 張全班完成的卡片' + (kept ? '；' + kept + ' 張還有人欠交，保留在看板上' : ''), true);
+            } catch (e) { toast(e.message); }
+        }
+
+        // ---------- 補交櫃台（老師） ----------
+        let counterSeat = null;
+        function owedItems(seat) {
+            const items = [];
+            for (const [kind, list] of [['daily', board.daily], ['exam', board.exam]]) {
+                for (const c of list) {
+                    const s = c.statuses[seat - 1] || 0;
+                    if (s > 0) items.push({ card: c, kind, status: s, mark: markOf(c, seat) });
+                }
+            }
+            return items;
+        }
+        function openCounter(seat) {
+            if (!isTeacher()) return;
+            if (seat) counterSeat = seat;
+            document.getElementById('counterOverlay').classList.add('show');
+            renderCounter();
+        }
+        function closeCounter() { document.getElementById('counterOverlay').classList.remove('show'); }
+
+        function renderCounter() {
+            const seats = document.getElementById('counterSeats');
+            seats.replaceChildren();
+            for (let s = 1; s <= board.studentCount; s++) {
+                const n = owedItems(s).length;
+                const b = el('button', 'counter-seat' + (n ? '' : ' zero') + (s === counterSeat ? ' selected' : ''));
+                b.appendChild(el('span', '', pad(s)));
+                b.appendChild(el('small', '', n ? '欠 ' + n + ' 項' : '✓'));
+                b.onclick = () => { counterSeat = s; renderCounter(); };
+                seats.appendChild(b);
+            }
+            const list = document.getElementById('counterList');
+            list.replaceChildren();
+            if (!counterSeat) {
+                list.appendChild(el('div', 'trash-meta', '請先點選座號'));
+                return;
+            }
+            const seat = counterSeat;
+            const items = owedItems(seat);
+            if (!items.length) {
+                list.appendChild(el('div', 'counter-clean', '🎉 ' + pad(seat) + ' 號全部交清'));
+                return;
+            }
+            list.appendChild(el('div', 'counter-title', pad(seat) + ' 號 還欠 ' + items.length + ' 項'));
+            for (const it of items) {
+                const row = el('div', 'counter-item');
+                row.appendChild(el('span', 'counter-dot s' + it.status));
+                const name = el('div', 'counter-name', (it.kind === 'exam' ? '📝 ' : '📁 ') + it.card.name);
+                const lv = ['', '未交', '再催', '嚴重'][it.status];
+                name.appendChild(el('span', 'trash-meta', lv + (it.mark ? '・' + it.mark.by + ' ' + fmtTime(it.mark.at) + ' 登記' : '')));
+                row.appendChild(name);
+                const b = el('button', 'btn-done', '✔ 交了');
+                b.onclick = () => { b.disabled = true; setSeat(it.card.id, seat, 0); };
+                row.appendChild(b);
+                list.appendChild(row);
+            }
+            if (items.length > 1) {
+                const all = el('button', 'btn-done counter-all', '✔ 全部交了（' + items.length + ' 項）');
+                all.onclick = async () => {
+                    if (!confirm(pad(seat) + ' 號的 ' + items.length + ' 項全部交了？')) return;
+                    all.disabled = true;
+                    for (const it of items) {
+                        if (findCard(it.card.id)) await setSeat(it.card.id, seat, 0);
+                    }
+                };
+                list.appendChild(all);
+            }
+        }
+
+        // ---------- 小秘書管理（老師） ----------
+        async function openAccounts() {
+            if (!isTeacher()) return;
+            document.getElementById('accountsOverlay').classList.add('show');
+            document.getElementById('accountsPassword').replaceChildren();
+            await loadAccounts();
+        }
+        function closeAccounts() { document.getElementById('accountsOverlay').classList.remove('show'); }
+
+        function showPassword(name, pw) {
+            const box = document.getElementById('accountsPassword');
+            box.replaceChildren();
+            const wrap = el('div', 'pw-box');
+            wrap.append(el('div', '', name + ' 的密碼'), el('div', 'pw', pw), el('div', 'trash-meta', '請抄下來，之後不會再顯示'));
+            box.appendChild(wrap);
+        }
+
+        async function loadAccounts() {
+            const list = document.getElementById('accountsList');
+            list.textContent = '讀取中…';
+            try {
+                const r = await api('GET', '/api/accounts');
+                list.replaceChildren();
+                if (!r.accounts || !r.accounts.length) {
+                    list.appendChild(el('div', 'trash-meta', '還沒有小秘書帳號'));
+                    return;
+                }
+                for (const a of r.accounts) {
+                    const row = el('div', 'acct-row');
+                    const head = el('div', 'acct-head');
+                    head.append(el('span', 'acct-badge', a.short || '?'), el('strong', '', a.name),
+                        el('span', a.active ? 'acct-on' : 'acct-off', a.active ? '啟用中' : '已停用'));
+                    row.appendChild(head);
+                    const actions = el('div', 'acct-actions');
+                    const rename = el('button', '', '✏️ 改名稱');
+                    rename.onclick = () => renameAccount(a);
+                    const reset = el('button', '', '🔑 重設密碼');
+                    reset.onclick = () => resetPassword(a);
+                    const toggle = el('button', '', a.active ? '⏸ 停用' : '▶ 啟用');
+                    toggle.onclick = () => patchAccount(a, { active: !a.active }, a.active ? '已停用 ' + a.name : '已啟用 ' + a.name);
+                    actions.append(rename, reset, toggle);
+                    row.appendChild(actions);
+                    list.appendChild(row);
+                }
+            } catch (e) {
+                list.textContent = e.message;
+            }
+        }
+
+        async function patchAccount(a, body, okMsg) {
+            try {
+                const r = await api('PATCH', '/api/accounts/' + a.id, body);
+                if (r.password) showPassword(body.name || a.name, r.password);
+                if (okMsg) toast(okMsg, true);
+                await loadAccounts();
+            } catch (e) { toast(e.message); }
+        }
+
+        function renameAccount(a) {
+            const name = prompt('新的名稱', a.name);
+            if (name === null || !name.trim()) return;
+            const short = prompt('格子上顯示的徽章字（1 個字）', a.short || name.trim().slice(-1));
+            if (short === null) return;
+            patchAccount(a, { name: name.trim(), short: short.trim() || name.trim().slice(-1) }, '已更新');
+        }
+
+        function resetPassword(a) {
+            const pw = prompt('重設「' + a.name + '」的密碼\n\n留空 = 隨機產生 6 位數\n或輸入你想要的新密碼', '');
+            if (pw === null) return;
+            patchAccount(a, { password: pw.trim() || 'random' });
+        }
+
+        async function addAccount() {
+            const name = prompt('小秘書的名稱（例如：小狐狸）', '');
+            if (name === null || !name.trim()) return;
+            const short = prompt('格子上顯示的徽章字（1 個字）', name.trim().slice(-1));
+            if (short === null) return;
+            const pw = prompt('密碼\n\n留空 = 隨機產生 6 位數', '');
+            if (pw === null) return;
+            const body = { name: name.trim(), short: short.trim() || name.trim().slice(-1) };
+            if (pw.trim()) body.password = pw.trim();
+            try {
+                const r = await api('POST', '/api/accounts', body);
+                showPassword(body.name, r.password || pw.trim());
+                toast('已新增 ' + body.name, true);
+                await loadAccounts();
             } catch (e) { toast(e.message); }
         }
 
@@ -739,27 +1103,22 @@
         function renderPhotoGallery() {
             const container = document.getElementById('photoGalleryContainer');
             container.replaceChildren();
-            if (!board.albums.length) {
-                const empty = document.createElement('div'); empty.className = 'empty-hint'; empty.textContent = '還沒有相簿';
-                container.appendChild(empty);
-            }
+            if (!board.albums.length) container.appendChild(el('div', 'empty-hint', '還沒有相簿'));
             for (const p of board.albums) {
-                const card = document.createElement('div'); card.className = 'photo-album-card';
-                if (isTeacher) {
-                    const del = document.createElement('button'); del.className = 'btn-del-photo'; del.textContent = '×'; del.title = '刪除（可以復原）';
+                const card = el('div', 'photo-album-card');
+                if (isTeacher()) {
+                    const del = el('button', 'btn-del-photo', '×'); del.title = '刪除（可以復原）';
                     del.onclick = (e) => { e.preventDefault(); e.stopPropagation(); removeAlbum(p); };
                     card.appendChild(del);
                 }
                 const a = document.createElement('a');
                 if (/^https?:\/\//i.test(p.url)) a.href = p.url;
                 a.target = '_blank'; a.rel = 'noopener noreferrer';
-                const icon = document.createElement('div'); icon.className = 'album-icon-zone'; icon.textContent = p.icon;
-                const info = document.createElement('div'); info.className = 'album-info-zone';
-                const wrap = document.createElement('div');
-                const name = document.createElement('div'); name.className = 'album-name'; name.textContent = p.name;
-                const desc = document.createElement('div'); desc.className = 'album-desc'; desc.textContent = p.description || '';
-                const hint = document.createElement('div'); hint.className = 'album-action-hint'; hint.textContent = '進入相簿觀看 ➜';
-                wrap.append(name, desc); info.append(wrap, hint); a.append(icon, info);
+                const info = el('div', 'album-info-zone');
+                const wrap = el('div');
+                wrap.append(el('div', 'album-name', p.name), el('div', 'album-desc', p.description || ''));
+                info.append(wrap, el('div', 'album-action-hint', '進入相簿觀看 ➜'));
+                a.append(el('div', 'album-icon-zone', p.icon), info);
                 card.appendChild(a);
                 container.appendChild(card);
             }
@@ -792,28 +1151,23 @@
             } catch (e) { toast(e.message); }
         }
 
-        // ---------- 復原 ----------
+        // ---------- 復原（老師） ----------
         const REASON = { manual: '手動取下', completed: '全班完成', clear: '清空', escalated: '被新卡接續' };
-        function fmtTime(ms) {
-            const d = new Date(ms);
-            return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-        }
 
         async function openTrash() {
+            if (!isTeacher()) return;
             document.getElementById('trashOverlay').classList.add('show');
             const list = document.getElementById('trashList');
             list.textContent = '讀取中…';
             try {
                 const t = await api('GET', '/api/trash');
                 list.replaceChildren();
-                const section = (label) => { const s = document.createElement('div'); s.className = 'trash-section'; s.textContent = label; list.appendChild(s); };
+                const section = (label) => list.appendChild(el('div', 'trash-section', label));
                 const item = (title, meta, onRestore) => {
-                    const row = document.createElement('div'); row.className = 'trash-item';
-                    const left = document.createElement('div');
-                    const tt = document.createElement('div'); tt.textContent = title;
-                    const mm = document.createElement('div'); mm.className = 'trash-meta'; mm.textContent = meta;
-                    left.append(tt, mm);
-                    const b = document.createElement('button'); b.className = 'btn-restore'; b.textContent = '復原';
+                    const row = el('div', 'trash-item');
+                    const left = el('div');
+                    left.append(el('div', '', title), el('div', 'trash-meta', meta));
+                    const b = el('button', 'btn-restore', '復原');
                     b.onclick = async () => {
                         b.disabled = true;
                         try { await onRestore(); row.remove(); await loadBoard(false); toast('已復原「' + title + '」', true); }
@@ -822,14 +1176,14 @@
                     row.append(left, b); list.appendChild(row);
                 };
                 section('📁 作業與考試卡片');
-                if (!t.cards.length) list.appendChild(Object.assign(document.createElement('div'), { className: 'trash-meta', textContent: '沒有' }));
+                if (!t.cards.length) list.appendChild(el('div', 'trash-meta', '沒有'));
                 for (const c of t.cards) {
                     item((c.kind === 'exam' ? '📝 ' : '📁 ') + c.name,
                         fmtTime(c.deletedAt) + '・' + (REASON[c.reason] || '') + '・' + c.pending + ' 人未完成',
                         () => api('POST', '/api/cards/' + c.id + '/restore'));
                 }
                 section('📸 相簿');
-                if (!t.albums.length) list.appendChild(Object.assign(document.createElement('div'), { className: 'trash-meta', textContent: '沒有' }));
+                if (!t.albums.length) list.appendChild(el('div', 'trash-meta', '沒有'));
                 for (const a of t.albums) {
                     item(a.icon + ' ' + a.name, fmtTime(a.deletedAt), () => api('POST', '/api/albums/' + a.id + '/restore'));
                 }
@@ -851,19 +1205,16 @@
             const grid = document.getElementById('wallGrid'); grid.replaceChildren();
             for (let s = 1; s <= board.studentCount; s++) {
                 const d = debtsOf(s);
-                const box = document.createElement('div'); box.className = 'wall-student-box';
-                const no = document.createElement('div');
+                const box = el('div', 'wall-student-box');
                 if (!d.daily.length && !d.exam.length) {
                     box.classList.add('clean');
-                    no.className = 'wall-no is-clean'; no.textContent = '😇 ' + pad(s) + '號';
-                    const ok = document.createElement('div'); ok.style.cssText = 'color:#2a9d8f; font-size:0.85rem; font-weight:bold;'; ok.textContent = '✨ 全數通關！';
-                    box.append(no, ok);
+                    const ok = el('div', '', '✨ 全數通關！'); ok.style.cssText = 'color:#2a9d8f; font-size:0.85rem; font-weight:bold;';
+                    box.append(el('div', 'wall-no is-clean', '😇 ' + pad(s) + '號'), ok);
                 } else {
                     box.classList.add('has-debt');
-                    no.className = 'wall-no is-debt'; no.textContent = '👤 ' + pad(s) + '號';
-                    box.appendChild(no);
-                    for (const i of d.daily) box.appendChild(Object.assign(document.createElement('div'), { className: 'wall-debt-item', textContent: '📁 ' + i }));
-                    for (const i of d.exam) box.appendChild(Object.assign(document.createElement('div'), { className: 'wall-debt-item', textContent: '📝 ' + i }));
+                    box.appendChild(el('div', 'wall-no is-debt', '👤 ' + pad(s) + '號'));
+                    for (const i of d.daily) box.appendChild(el('div', 'wall-debt-item', '📁 ' + i));
+                    for (const i of d.exam) box.appendChild(el('div', 'wall-debt-item', '📝 ' + i));
                 }
                 grid.appendChild(box);
             }
@@ -893,7 +1244,10 @@
 
         function searchStudentMissing() {
             const seat = parseInt(document.getElementById('searchNo').value, 10);
-            if (isNaN(seat) || seat < 1 || seat > board.studentCount) { toast('請輸入 1～' + board.studentCount + ' 的座號'); return; }
+            const valid = !isNaN(seat) && seat >= 1 && seat <= board.studentCount;
+            // 老師直接開補交櫃台
+            if (isTeacher()) { openCounter(valid ? seat : undefined); return; }
+            if (!valid) { toast('請輸入 1～' + board.studentCount + ' 的座號'); return; }
             const d = debtsOf(seat);
             if (!d.daily.length && !d.exam.length) {
                 alert('🎉 恭喜！【 ' + seat + ' 號】目前全部過關！');
