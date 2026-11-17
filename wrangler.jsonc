@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nice-family",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    // 前端是 public/ 裡的靜態檔，不需要建置
+    "directory": "./public",
+    "binding": "ASSETS",
+    // /api/* 一律先交給 Worker
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nice-family-db",
+      // 建立正式資料庫後（bash scripts/bootstrap.sh）會自動換成真正的 ID
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": { "enabled": true }
+}
