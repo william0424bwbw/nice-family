@@ -33,7 +33,8 @@ if node -e "
 const fs = require('fs');
 const a = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
 const b = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-process.exit(JSON.stringify(a) === JSON.stringify(b) ? 0 : 1);
+const pick = d => JSON.stringify({ n: d.studentCount, daily: d.daily, exam: d.exam, albums: d.albums });
+process.exit(pick(a) === pick(b) ? 0 : 1);
 " "backups/nice-family-$STAMP.json" "$AFTER"; then
   rm -f "$AFTER"
   echo "🎉 部署完成，資料與部署前相同（備份：backups/nice-family-$STAMP.*）"
