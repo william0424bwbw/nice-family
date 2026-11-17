@@ -180,13 +180,21 @@ interface CardRow {
   locked: number;
   created_at: number;
   created_by: string | null;
+  track: Track | null;
+}
+
+type Track = 'chinese' | 'math';
+function trackParam(v: unknown): Track | null {
+  if (v === undefined || v === null || v === '' || v === 'auto') return null;
+  if (v === 'chinese' || v === 'math') return v;
+  throw new HttpError(400, '分類不正確');
 }
 
 async function getBoard(db: D1Database, actor: Actor | null) {
   const [settings, cards, statuses, albums, accounts] = await db.batch([
     db.prepare("SELECT value FROM settings WHERE key = 'student_count'"),
-    db.prepare(`SELECT id, kind, name, base_name, priority, locked, created_at, created_by FROM cards
-                WHERE deleted_at IS NULL ORDER BY priority, created_at, id`),
+    db.prepare(`SELECT id, kind, name, base_name, priority, locked, created_at, created_by, track FROM cards
+                WHERE deleted_at IS NULL ORDER BY sort_order IS NULL, sort_order, priority, created_at, id`),
     db.prepare(`SELECT s.card_id, s.seat, s.status, s.updated_by, s.updated_at FROM card_status s
                 JOIN cards c ON c.id = s.card_id WHERE c.deleted_at IS NULL`),
     db.prepare(`SELECT id, icon, name, description, url, created_at FROM albums
@@ -218,6 +226,8 @@ async function getBoard(db: D1Database, actor: Actor | null) {
         createdAt: c.created_at,
         statuses: e.statuses,
       };
+      // 沒設定分類的卡片不帶這個欄位（由前端依名稱自動判斷）
+      if (c.track) card.track = c.track;
       // 誰登記的：只給登入的人看（家長畫面不顯示秘書名字）
       if (actor) {
         card.createdBy = c.created_by;
@@ -240,6 +250,7 @@ async function createCard(db: D1Database, actor: Actor, body: Record<string, unk
   if (!kind) throw new HttpError(400, '卡片種類不正確');
   const priority = body.priority === undefined ? 5 : int(body.priority, '優先順序', 1, 5);
   const defaultDebt = body.defaultDebt === true;
+  let track = trackParam(body.track);
   let name: string;
   let baseName: string;
   if (kind === 'daily') {
@@ -259,9 +270,9 @@ async function createCard(db: D1Database, actor: Actor, body: Record<string, unk
   const statuses: number[] = Array(n).fill(defaultDebt ? 1 : 0);
 
   // 日常作業：再開同名作業時，上一張沒交的人自動升級（1 → 2，2/3 → 3），上一張卡收起來
-  let previous: { id: number; name: string } | null = null;
+  let previous: { id: number; name: string; sort_order: number | null } | null = null;
   if (kind === 'daily') {
-    previous = await db.prepare(`SELECT id, name FROM cards WHERE deleted_at IS NULL AND kind = 'daily' AND base_name = ?
+    previous = await db.prepare(`SELECT id, name, sort_order FROM cards WHERE deleted_at IS NULL AND kind = 'daily' AND base_name = ?
                                  ORDER BY created_at DESC, id DESC LIMIT 1`).bind(baseName).first();
     if (previous) {
       const old = await db.prepare('SELECT seat, status FROM card_status WHERE card_id = ?').bind(previous.id)
@@ -273,10 +284,19 @@ async function createCard(db: D1Database, actor: Actor, body: Record<string, unk
     }
   }
 
+  // 沒指定分類：沿用最近一張同名卡片的分類（包含已收起的）
+  if (!track) {
+    const last = await db.prepare(`SELECT track FROM cards WHERE kind = ? AND base_name = ? AND track IS NOT NULL
+                                   ORDER BY created_at DESC, id DESC LIMIT 1`).bind(kind, baseName).first<{ track: Track }>();
+    track = last?.track ?? null;
+  }
+  // 催繳升級：新卡片放在上一張的位置
+  const sortOrder = previous?.sort_order ?? null;
+
   // 同一個交易：新增卡片 → 寫入狀態 → 收起上一張 → 紀錄
   const stmts: D1PreparedStatement[] = [
-    db.prepare(`INSERT INTO cards (kind, name, base_name, priority, locked, created_at, updated_at, created_by)
-                VALUES (?, ?, ?, ?, 0, ?, ?, ?)`).bind(kind, name, baseName, priority, now, now, actor.name),
+    db.prepare(`INSERT INTO cards (kind, name, base_name, priority, locked, created_at, updated_at, created_by, track, sort_order)
+                VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`).bind(kind, name, baseName, priority, now, now, actor.name, track, sortOrder),
   ];
   statuses.forEach((s, i) => {
     if (s > 0) {
@@ -288,7 +308,7 @@ async function createCard(db: D1Database, actor: Actor, body: Record<string, unk
     stmts.push(db.prepare(`UPDATE cards SET deleted_at = ?, deleted_reason = 'escalated', updated_at = ?
                            WHERE id = ? AND deleted_at IS NULL`).bind(now, now, previous.id));
   }
-  stmts.push(audit(db, now, actor, 'card.create', { kind, name, priority, defaultDebt, previous: previous?.id ?? null }));
+  stmts.push(audit(db, now, actor, 'card.create', { kind, name, priority, track, defaultDebt, previous: previous?.id ?? null }));
   const results = await db.batch(stmts);
   const id = results[0].meta.last_row_id;
   return { id, name, escalatedFrom: previous?.name ?? null };
@@ -388,6 +408,24 @@ async function updateCard(db: D1Database, actor: Actor, cardId: number, body: Re
     audit(db, now, actor, 'card.update', { cardId, locked: body.locked, priority: body.priority }),
   ]);
   if (!r.meta.changes) throw new HttpError(404, '找不到這張卡片，請重新整理');
+  return { ok: true };
+}
+
+// 拖曳排列：把一欄的卡片依照 ids 的順序重新編號，同時設定這一欄的分類
+async function orderCards(db: D1Database, actor: Actor, body: Record<string, unknown>, now: number) {
+  const kind = body.kind === 'exam' ? 'exam' : body.kind === 'daily' ? 'daily' : null;
+  if (!kind) throw new HttpError(400, '卡片種類不正確');
+  const track = trackParam(body.track);
+  if (!track) throw new HttpError(400, '分類不正確');
+  const ids = body.ids;
+  if (!Array.isArray(ids) || ids.length > 200 || !ids.every(x => Number.isInteger(x) && x > 0) || new Set(ids).size !== ids.length) {
+    throw new HttpError(400, '卡片清單不正確');
+  }
+  const stmts = (ids as number[]).map((id, i) =>
+    db.prepare(`UPDATE cards SET track = ?, sort_order = ?, updated_at = ? WHERE id = ? AND kind = ? AND deleted_at IS NULL`)
+      .bind(track, i, now, id, kind));
+  stmts.push(audit(db, now, actor, 'card.order', { kind, track, ids }));
+  await db.batch(stmts);
   return { ok: true };
 }
 
@@ -601,6 +639,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const teacher = requireTeacher(actor);
 
   if (method === 'GET' && path === '/api/trash') return json(await getTrash(db, now));
+  if (method === 'POST' && path === '/api/cards/order') return json(await orderCards(db, teacher, await readBody(request), now));
   if (method === 'POST' && path === '/api/cards/clear') return json(await clearCards(db, teacher, await readBody(request), now));
   if (m && method === 'PATCH') return json(await updateCard(db, teacher, idParam(m[1]), await readBody(request), now));
 

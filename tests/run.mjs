@@ -145,6 +145,39 @@ async function runTests() {
     eq((await call('PATCH', `/api/cards/${c.id}`, { priority: 9 })).status, 400);
   });
 
+  await test('分類：沒指定時不帶 track；新增時可以指定', async () => {
+    eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '背' })).status, 201);
+    eq((await cardByName('背')).track, undefined);
+    eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '閱讀單', track: 'chinese', defaultDebt: true })).status, 201);
+    eq((await cardByName('閱讀單')).track, 'chinese');
+    eq((await call('POST', '/api/cards', { kind: 'daily', baseName: 'x', track: 'art' })).status, 400);
+  });
+
+  await test('拖曳排序：設定欄位和順序，只有老師可以', async () => {
+    const bei = await cardByName('背');
+    const read = await cardByName('閱讀單');
+    const guo = await cardByName('國習');
+    eq((await call('POST', '/api/cards/order', { kind: 'daily', track: 'chinese', ids: [bei.id, guo.id, read.id] }, null)).status, 401);
+    eq((await call('POST', '/api/cards/order', { kind: 'daily', track: 'chinese', ids: [bei.id, bei.id] })).status, 400);
+    eq((await call('POST', '/api/cards/order', { kind: 'daily', track: 'other', ids: [bei.id] })).status, 400);
+    eq((await call('POST', '/api/cards/order', { kind: 'daily', track: 'chinese', ids: [read.id, bei.id, guo.id] })).status, 200);
+    const b = await board();
+    const ids = b.daily.map(c => c.id);
+    eq(ids.slice(0, 3), [read.id, bei.id, guo.id], '前三張的順序');
+    eq(b.daily.filter(c => [read.id, bei.id, guo.id].includes(c.id)).map(c => c.track), ['chinese', 'chinese', 'chinese']);
+  });
+
+  await test('再開同名作業：沿用上一張的分類和位置', async () => {
+    const old = await cardByName('背');
+    eq((await call('PUT', `/api/cards/${old.id}/seats/5`, { status: 1 })).status, 200);
+    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '背', priority: 4 });
+    eq(r.status, 201);
+    const b = await board();
+    const c = b.daily.find(x => x.id === r.data.id);
+    eq([c.track, c.statuses[4]], ['chinese', 2]);
+    eq(b.daily.findIndex(x => x.id === r.data.id), 1, '新卡片在原本的位置');
+  });
+
   await test('清空後全部可以復原，狀態還在', async () => {
     const before = await board();
     // 加一張全班完成的卡
@@ -263,7 +296,7 @@ async function runHelperTests() {
   await test('秘書不能用老師的功能', async () => {
     const c = await cardByName('國習');
     for (const [m, p, body] of [
-      ['POST', '/api/cards/clear', { kind: 'daily' }], ['GET', '/api/trash'], ['PATCH', `/api/cards/${c.id}`, { locked: false }],
+      ['POST', '/api/cards/clear', { kind: 'daily' }], ['GET', '/api/trash'], ['POST', '/api/cards/order', { kind: 'daily', track: 'math', ids: [c.id] }], ['PATCH', `/api/cards/${c.id}`, { locked: false }],
       ['POST', `/api/cards/${c.id}/restore`], ['POST', '/api/albums', { name: 'x', url: 'https://a' }], ['GET', '/api/accounts'],
       ['PATCH', `/api/accounts/${foxId}`, { password: 'random' }],
     ]) eq((await call(m, p, body, fox)).status, 403, `${m} ${p}`);

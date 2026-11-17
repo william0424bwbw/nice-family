@@ -88,6 +88,10 @@
         .header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
         .btn-lock { background-color: #4361ee; color: white; border: none; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
         .btn-lock.locked { background-color: #2a9d8f; }
+        .btn-grip { background: #3e3e50; color: #ddd; border: none; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; line-height: 1.2; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+        .homework-card.dragging { position: fixed; z-index: 1000; pointer-events: none; opacity: 0.92; transform: rotate(1.5deg); box-shadow: 0 16px 40px rgba(0,0,0,0.6); border-color: #4cc9f0; transition: none; }
+        .card-placeholder { border: 2px dashed #4cc9f0; border-radius: 12px; background: rgba(76, 201, 240, 0.08); }
+        body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
         .btn-delete { background: none; border: none; color: #ef4444; font-size: 0.95rem; cursor: pointer; padding: 0 2px; }
 
         .student-matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
@@ -227,12 +231,10 @@
         </select>
         <input type="text" class="input-style" id="customInput" placeholder="請打上新作業名稱" style="display:none;" maxlength="30">
 
-        <select class="select-style" id="cardOrderDaily" style="background:#4361ee;">
-            <option value="5">📌 優先權: 預設</option>
-            <option value="1">1️⃣ 優先權: 第 1 順位</option>
-            <option value="2">2️⃣ 優先權: 第 2 順位</option>
-            <option value="3">3️⃣ 優先權: 第 3 順位</option>
-            <option value="4">4️⃣ 優先權: 第 4 順位</option>
+        <select class="select-style" id="trackDaily" style="background:#4361ee;" title="放在哪一欄（之後也可以拖曳卡片換欄）">
+            <option value="auto">🔀 分類：自動判斷</option>
+            <option value="chinese">📘 分類：語文類</option>
+            <option value="math">📐 分類：數學與其他</option>
         </select>
 
         <label class="check-container">
@@ -257,13 +259,6 @@
         </select>
         <input type="text" class="input-style" id="examUnitInput" placeholder="單元 (例如: 第一單元)" maxlength="30">
 
-        <select class="select-style" id="cardOrderExam" style="background:#4361ee;">
-            <option value="5">📌 優先權: 預設</option>
-            <option value="1">1️⃣ 優先權: 第 1 順位</option>
-            <option value="2">2️⃣ 優先權: 第 2 順位</option>
-            <option value="3">3️⃣ 優先權: 第 3 順位</option>
-            <option value="4">4️⃣ 優先權: 第 4 順位</option>
-        </select>
 
         <label class="check-container">
             <input type="checkbox" id="defaultDebtExam"> 📢 預設全班未完成
@@ -602,6 +597,17 @@
             if (title.includes('數')) return 'card-math';
             return '';
         }
+        // 卡片在哪一欄：老師設定過（新增時選、或拖曳到另一欄）就照設定，否則依名稱判斷
+        function trackOf(card) {
+            if (card.track) return card.track;
+            return getSubjectClass(card.name) === 'card-chinese' ? 'chinese' : 'math';
+        }
+        // 卡片標題顏色跟著所在的欄
+        function cardClass(card) {
+            if (card.track === 'chinese') return 'card-chinese';
+            if (card.track === 'math') return getSubjectClass(card.name) === 'card-chinese' ? 'card-math' : getSubjectClass(card.name);
+            return getSubjectClass(card.name);
+        }
 
         function findCard(id) {
             return board.daily.find(c => c.id === id) || board.exam.find(c => c.id === id);
@@ -612,7 +618,7 @@
 
         let renderQueued = false;
         function renderAll() {
-            if (press) { renderQueued = true; return; }
+            if (press || drag) { renderQueued = true; return; }
             renderTracks('daily', 'dailyChineseTrack', 'dailyMathTrack',
                 '📘 語文類特區 (國語/甲乙本/聽圈默)', '📐 數學與其他特區 (數習/數作/控卡)');
             renderTracks('exam', 'examChineseTrack', 'examMathTrack',
@@ -625,11 +631,13 @@
         function renderTracks(kind, chId, mathId, chTitle, mathTitle) {
             const ch = document.getElementById(chId);
             const math = document.getElementById(mathId);
+            ch.dataset.kind = kind; ch.dataset.track = 'chinese';
+            math.dataset.kind = kind; math.dataset.track = 'math';
             ch.replaceChildren(el('div', 'track-header-title track-chinese-title', chTitle));
             math.replaceChildren(el('div', 'track-header-title track-math-title', mathTitle));
             for (const card of board[kind]) {
                 const c = buildCard(card, kind);
-                (getSubjectClass(card.name) === 'card-chinese' ? ch : math).appendChild(c);
+                (trackOf(card) === 'chinese' ? ch : math).appendChild(c);
             }
         }
 
@@ -640,7 +648,7 @@
         }
 
         function buildCard(card, kind) {
-            const box = el('div', 'homework-card ' + getSubjectClass(card.name));
+            const box = el('div', 'homework-card ' + cardClass(card));
             box.dataset.cardId = card.id;
             if (card.locked || !loggedIn()) box.classList.add('hide-green-mode');
 
@@ -652,6 +660,11 @@
             if (loggedIn()) {
                 const actions = el('div', 'header-actions');
                 if (isTeacher()) {
+                    const grip = el('button', 'btn-grip', '⠿');
+                    grip.title = '按住拖曳，調整順序或移到另一欄';
+                    grip.addEventListener('pointerdown', e => startDrag(e, box, kind));
+                    grip.addEventListener('contextmenu', e => e.preventDefault());
+                    actions.appendChild(grip);
                     const lockBtn = el('button', 'btn-lock' + (card.locked ? ' locked' : ''), card.locked ? '🔓' : '🔒');
                     lockBtn.title = card.locked ? '顯示已完成的人' : '隱藏已完成的人';
                     lockBtn.onclick = () => toggleLock(card.id);
@@ -682,6 +695,112 @@
             }
             box.appendChild(matrix);
             return box;
+        }
+
+        // ---------- 拖曳排列卡片（只有老師） ----------
+        // 用 pointer 事件自己做，手機和電腦都能用；拖曳期間不重畫畫面
+        let drag = null;
+        function startDrag(e, box, kind) {
+            if (e.button) return;
+            e.preventDefault();
+            const r = box.getBoundingClientRect();
+            const ph = el('div', 'card-placeholder');
+            ph.style.height = r.height + 'px';
+            box.parentNode.insertBefore(ph, box);
+            box.classList.add('dragging');
+            box.style.setProperty('width', r.width + 'px', 'important');
+            box.style.left = r.left + 'px';
+            box.style.top = r.top + 'px';
+            document.body.appendChild(box);
+            drag = { box, ph, kind, dx: e.clientX - r.left, dy: e.clientY - r.top, x: e.clientX, y: e.clientY, scroll: null };
+            document.body.classList.add('is-dragging');
+            document.addEventListener('pointermove', onDragMove);
+            document.addEventListener('pointerup', onDragEnd);
+            document.addEventListener('pointercancel', onDragCancel);
+            drag.scroll = setInterval(autoScroll, 30);
+        }
+        // 拖到畫面上下邊緣時自動捲動
+        function autoScroll() {
+            if (!drag) return;
+            const edge = 70;
+            if (drag.y < edge) window.scrollBy(0, -12);
+            else if (drag.y > window.innerHeight - edge) window.scrollBy(0, 12);
+            else return;
+            placeDrag();
+        }
+        function onDragMove(e) {
+            if (!drag) return;
+            drag.x = e.clientX; drag.y = e.clientY;
+            drag.box.style.left = (e.clientX - drag.dx) + 'px';
+            drag.box.style.top = (e.clientY - drag.dy) + 'px';
+            placeDrag();
+        }
+        // 依手指位置，把預留位置放到最近的欄、正確的順序
+        function placeDrag() {
+            const { x, y, kind, ph } = drag;
+            const cols = [...document.querySelectorAll('.track-column[data-kind="' + kind + '"]')];
+            let col = null, best = Infinity;
+            for (const c of cols) {
+                const r = c.getBoundingClientRect();
+                const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
+                const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+                if (dx + dy < best) { best = dx + dy; col = c; }
+            }
+            if (!col) return;
+            const cards = [...col.querySelectorAll(':scope > .homework-card')];
+            const before = cards.find(c => {
+                const r = c.getBoundingClientRect();
+                return y < r.top || (y <= r.bottom && x < r.left + r.width / 2);
+            });
+            if (before) { if (ph.nextSibling !== before) col.insertBefore(ph, before); }
+            else if (col.lastElementChild !== ph) col.appendChild(ph);
+        }
+        function stopDrag() {
+            document.removeEventListener('pointermove', onDragMove);
+            document.removeEventListener('pointerup', onDragEnd);
+            document.removeEventListener('pointercancel', onDragCancel);
+            clearInterval(drag.scroll);
+            const d = drag;
+            d.box.classList.remove('dragging');
+            d.box.style.removeProperty('width'); d.box.style.left = ''; d.box.style.top = '';
+            d.ph.replaceWith(d.box);
+            document.body.classList.remove('is-dragging');
+            drag = null;
+            return d;
+        }
+        function onDragCancel() {
+            if (!drag) return;
+            stopDrag();
+            renderQueued = false;
+            renderAll();
+        }
+        async function onDragEnd() {
+            if (!drag) return;
+            const { box, kind } = stopDrag();
+            const col = box.parentNode;
+            const track = col.dataset.track;
+            const id = Number(box.dataset.cardId);
+            const ids = [...col.querySelectorAll(':scope > .homework-card')].map(c => Number(c.dataset.cardId));
+            const card = findCard(id);
+            const oldTrack = card ? trackOf(card) : track;
+            const oldIds = board[kind].filter(c => trackOf(c) === track).map(c => c.id);
+            if (oldTrack === track && JSON.stringify(oldIds) === JSON.stringify(ids)) {
+                renderQueued = false; renderAll(); return;   // 沒有移動
+            }
+            // 先在畫面上照新的順序排好，再存到雲端
+            const pos = new Map();
+            for (const c of document.querySelectorAll('.track-column[data-kind="' + kind + '"] > .homework-card')) pos.set(Number(c.dataset.cardId), pos.size);
+            board[kind].sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
+            for (const c of board[kind]) if (ids.includes(c.id)) c.track = track;
+            renderQueued = false;
+            renderAll();
+            try {
+                await withPending(() => api('POST', '/api/cards/order', { kind, track, ids }));
+                if (oldTrack !== track) toast('已移到「' + (track === 'chinese' ? '語文類' : '數學與其他') + '」，之後同名作業也會放在這一欄', true);
+            } catch (err) {
+                toast(err.message);
+            }
+            loadBoard(false);
         }
 
         function paintNode(btn, status) {
@@ -900,13 +1019,13 @@
             const ok = await postCard({
                 kind: 'daily',
                 baseName,
-                priority: Number(document.getElementById('cardOrderDaily').value),
+                track: document.getElementById('trackDaily').value,
                 defaultDebt: document.getElementById('defaultDebtDaily').checked,
             }, 'addDailyBtn');
             if (ok) {
                 select.value = ''; customInput.value = ''; customInput.style.display = 'none';
                 document.getElementById('defaultDebtDaily').checked = false;
-                document.getElementById('cardOrderDaily').value = '5';
+                document.getElementById('trackDaily').value = 'auto';
             }
         }
 
@@ -917,13 +1036,11 @@
                 kind: 'exam',
                 subject: document.getElementById('examSubject').value,
                 unit,
-                priority: Number(document.getElementById('cardOrderExam').value),
                 defaultDebt: document.getElementById('defaultDebtExam').checked,
             }, 'addExamBtn');
             if (ok) {
                 document.getElementById('examUnitInput').value = '';
                 document.getElementById('defaultDebtExam').checked = false;
-                document.getElementById('cardOrderExam').value = '5';
             }
         }
 
