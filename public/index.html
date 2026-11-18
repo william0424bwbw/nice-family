@@ -171,6 +171,62 @@
         .mark-badge { position: absolute; top: 1px; right: 1px; font-size: 0.55rem; line-height: 1; background: rgba(0,0,0,0.6); color: #fff; border-radius: 4px; padding: 1px 2px; pointer-events: none; font-weight: bold; }
         .student-node.status-3 .mark-badge { top: -3px; right: -3px; }
 
+        /* 還欠同名舊作業的人：紅光脈動 + 搖晃的骷髏（只動裝飾，格子本身不移動，長按才不會失效） */
+        .student-node.owes-old { outline: 2px solid #ff1f3d; outline-offset: -2px; animation: owe-pulse 0.8s infinite; }
+        .student-node.status-3.owes-old { animation: neon-shining 0.6s infinite alternate, owe-pulse 0.8s infinite; }
+        .student-node.owes-old::before { content: '💀'; position: absolute; left: -5px; top: -8px; font-size: 0.85rem; pointer-events: none; animation: owe-shake 0.45s infinite; filter: drop-shadow(0 0 3px #ff1f3d); }
+        .owe-badge { position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%); font-size: 0.55rem; line-height: 1; background: #ff1f3d; color: #fff; border-radius: 4px; padding: 1px 3px; pointer-events: none; font-weight: bold; white-space: nowrap; animation: owe-blink 0.8s infinite; }
+        @keyframes owe-pulse {
+            0%, 100% { box-shadow: 0 0 3px #ff1f3d, inset 0 0 0 rgba(0,0,0,0); }
+            50% { box-shadow: 0 0 14px 3px #ff1f3d, inset 0 0 12px rgba(0,0,0,0.7); }
+        }
+        @keyframes owe-shake {
+            0% { transform: rotate(-14deg) scale(1); }
+            25% { transform: rotate(14deg) scale(1.25); }
+            50% { transform: rotate(-10deg) scale(1); }
+            75% { transform: rotate(10deg) scale(1.2); }
+            100% { transform: rotate(-14deg) scale(1); }
+        }
+        @keyframes owe-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+        /* 欠 2 份以上：綠色毒液格，大骷髏浮現蓋掉號碼再淡出 */
+        .student-node.owes-many { outline-color: #39ff14; animation: toxic-pulse 1.1s infinite; }
+        .student-node.status-3.owes-many { animation: neon-shining 0.6s infinite alternate, toxic-pulse 1.1s infinite; }
+        .student-node.owes-many::before { filter: drop-shadow(0 0 4px #39ff14); }
+        .student-node.owes-many::after { content: '💀'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; pointer-events: none; border-radius: inherit; background: radial-gradient(circle, rgba(57,255,20,0.55), rgba(10,40,10,0.85)); animation: skull-rise 2.6s ease-in-out infinite; }
+        .student-node.owes-many .owe-badge { background: #1a7f0e; z-index: 1; }
+        @keyframes toxic-pulse {
+            0%, 100% { box-shadow: 0 0 4px #39ff14, inset 0 0 0 rgba(0,0,0,0); }
+            50% { box-shadow: 0 0 16px 4px #39ff14, inset 0 0 12px rgba(0,60,0,0.8); }
+        }
+        @keyframes skull-rise {
+            0%, 15% { opacity: 0; transform: scale(0.6) translateY(6px); }
+            40%, 70% { opacity: 1; transform: scale(1.05) translateY(0); }
+            100% { opacity: 0; transform: scale(1.2) translateY(-4px); }
+        }
+
+        /* ☠️ 欠交大魔王：全螢幕動畫 */
+        .btn-doom { background: #1a7f0e; color: #d9ffd0; border: 1px solid #39ff14; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; box-shadow: 0 0 8px rgba(57,255,20,0.5); }
+        #doomOverlay { position: fixed; inset: 0; z-index: 300; overflow: hidden; cursor: pointer; background: radial-gradient(ellipse at center, #0f2a0f 0%, #050a05 70%, #000 100%); animation: doom-in 0.5s ease-out; touch-action: manipulation; }
+        @keyframes doom-in { from { opacity: 0; } to { opacity: 1; } }
+        .doom-slime { position: absolute; top: 0; left: 0; right: 0; height: 26px; background: #39ff14; box-shadow: 0 0 20px #39ff14; }
+        .doom-drip { position: absolute; top: 20px; width: 18px; background: linear-gradient(#39ff14, #1fbf0a); border-radius: 0 0 10px 10px; box-shadow: 0 0 10px #39ff14; animation: drip linear infinite; }
+        .doom-drip::after { content: ''; position: absolute; bottom: -9px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #1fbf0a; }
+        @keyframes drip { 0% { height: 0; opacity: 1; } 80% { opacity: 1; } 100% { height: 60vh; opacity: 0; } }
+        .doom-title { position: absolute; top: 44px; left: 0; right: 0; text-align: center; font-size: clamp(1.4rem, 6vw, 3rem); font-weight: 900; color: #39ff14; text-shadow: 0 0 12px #39ff14, 0 0 30px #1fbf0a; animation: glitch 0.25s infinite; pointer-events: none; padding: 0 12px; }
+        .doom-sub { position: absolute; bottom: 24px; left: 0; right: 0; text-align: center; color: #b6ffa6; font-weight: bold; font-size: 1rem; pointer-events: none; padding: 0 16px; }
+        @keyframes glitch {
+            0% { transform: translate(0, 0); } 25% { transform: translate(-2px, 1px); } 50% { transform: translate(2px, -1px); }
+            75% { transform: translate(-1px, -2px); } 100% { transform: translate(1px, 2px); }
+        }
+        .doom-skull { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; pointer-events: none; will-change: transform, opacity; }
+        .doom-skull .face { line-height: 1; filter: drop-shadow(0 0 10px #39ff14); }
+        .doom-skull .crown { line-height: 1; margin-bottom: -0.2em; }
+        .doom-skull .tag { margin-top: 2px; background: rgba(0,0,0,0.75); color: #39ff14; border: 1px solid #39ff14; border-radius: 8px; padding: 2px 8px; font-weight: 900; white-space: nowrap; font-size: 0.95rem; }
+        .doom-happy { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: clamp(1.4rem, 6vw, 2.6rem); font-weight: 900; text-align: center; pointer-events: none; }
+        .doom-happy .big { font-size: 5rem; animation: owe-shake 0.8s infinite; }
+
+        .old-tag { display: inline-block; margin-left: 4px; font-size: 0.65rem; background: #ff1f3d; color: #fff; border-radius: 4px; padding: 1px 4px; vertical-align: middle; }
+
         .dialog.wide { max-width: 540px; }
 
         /* 補交櫃台 */
@@ -246,6 +302,7 @@
         <div class="teacher-tools-row">
             <button class="btn-sync-cloud" onclick="loadBoard(true)">🔄 重新整理</button>
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
+            <button class="btn-doom" onclick="playDoom()">☠️ 欠交大魔王</button>
             <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
             <button class="btn-helpers teacher-only" onclick="openAccounts()">👥 小秘書</button>
             <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
@@ -269,6 +326,7 @@
         <div class="teacher-tools-row">
             <button class="btn-sync-cloud" onclick="loadBoard(true)">🔄 重新整理</button>
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
+            <button class="btn-doom" onclick="playDoom()">☠️ 欠交大魔王</button>
             <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
             <button class="btn-helpers teacher-only" onclick="openAccounts()">👥 小秘書</button>
             <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
@@ -616,6 +674,7 @@
                 document.getElementById('loadingHint').style.display = 'none';
                 renderAll();
                 if (manual) toast('已更新為最新資料', true);
+                autoDoomOnce();
             } catch (e) {
                 const hint = document.getElementById('loadingHint');
                 hint.style.display = 'block';
@@ -658,6 +717,140 @@
             if (card.track === 'math') return getSubjectClass(card.name) === 'card-chinese' ? 'card-math' : getSubjectClass(card.name);
             return getSubjectClass(card.name);
         }
+
+        // 這一格併進來幾份同名的舊欠交（再開同名作業時合併進來的）
+        function olderOwed(card, kind, seat) {
+            return (card.carried && card.carried[String(seat)]) || 0;
+        }
+        function hasNewer(card, kind) {
+            return board[kind].some(c => c.id !== card.id && c.baseName === card.baseName &&
+                (c.createdAt > card.createdAt || (c.createdAt === card.createdAt && c.id > card.id)));
+        }
+
+        // ---------- ☠️ 欠交大魔王 ----------
+        // 逾期 = 前幾天開的卡、或併進新卡的舊欠交（今天剛開、正在收的不算）
+        function overdueCounts() {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const m = new Map();
+            for (const kind of ['daily', 'exam']) {
+                for (const c of board[kind]) {
+                    const old = c.createdAt < today.getTime() || hasNewer(c, kind);
+                    for (let s = 1; s <= board.studentCount; s++) {
+                        if (!((c.statuses[s - 1] || 0) > 0)) continue;
+                        const n = (old ? 1 : 0) + olderOwed(c, kind, s);   // 舊卡本身 + 併進來的舊欠交
+                        if (n) m.set(s, (m.get(s) || 0) + n);
+                    }
+                }
+            }
+            return [...m].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+        }
+
+        // 老師／秘書每天第一次打開看板時自動播一次
+        function autoDoomOnce() {
+            if (!loggedIn() || document.getElementById('doomOverlay')) return;
+            const key = 'nice-family-doom-day';
+            const day = new Date().toDateString();
+            try { if (localStorage.getItem(key) === day) return; localStorage.setItem(key, day); } catch { return; }
+            if (overdueCounts().length) playDoom();
+        }
+
+        let doomFrame = 0;
+        function playDoom() {
+            if (document.getElementById('doomOverlay')) return;
+            const list = overdueCounts();
+            const ov = el('div');
+            ov.id = 'doomOverlay';
+            ov.onclick = stopDoom;
+            document.body.appendChild(ov);
+
+            if (!list.length) {
+                const h = el('div', 'doom-happy');
+                h.append(el('div', 'big', '🎉'), el('div', '', '全班都交齊了！'), el('div', '', '大魔王被打敗了 ✨'));
+                ov.appendChild(h);
+                ov.style.background = 'radial-gradient(ellipse at center, #2a9d8f 0%, #1e1e24 75%)';
+                return;
+            }
+
+            // 上方的毒液，往下滴
+            ov.appendChild(el('div', 'doom-slime'));
+            const W = window.innerWidth, H = window.innerHeight;
+            for (let i = 0; i < Math.max(8, Math.round(W / 70)); i++) {
+                const d = el('div', 'doom-drip');
+                d.style.left = (Math.random() * (W - 18)) + 'px';
+                d.style.animationDuration = (2.5 + Math.random() * 4) + 's';
+                d.style.animationDelay = (-Math.random() * 5) + 's';
+                d.style.width = (10 + Math.random() * 14) + 'px';
+                ov.appendChild(d);
+            }
+            ov.appendChild(el('div', 'doom-title', '☠️ 欠交大魔王出沒 ☠️'));
+            const total = list.reduce((a, [, n]) => a + n, 0);
+            ov.appendChild(el('div', 'doom-sub', list.length + ' 位同學還欠 ' + total + ' 份作業，快去補交！（點一下關閉）'));
+
+            // 骷髏：到處亂跑、互相推擠、偶爾隱身再浮出來
+            const skulls = list.map(([seat, n]) => {
+                // 欠越多越大顆；手機或人數多時縮小，才不會擠滿整個畫面
+                const size = Math.min(110, 44 + (n - 1) * 18) * (W < 500 ? 0.75 : 1) * (list.length > 12 ? 0.7 : list.length > 6 ? 0.85 : 1);
+                const node = el('div', 'doom-skull');
+                if (n >= 3) { const c = el('div', 'crown', '👑'); c.style.fontSize = size * 0.45 + 'px'; node.appendChild(c); }
+                const face = el('div', 'face', '💀'); face.style.fontSize = size + 'px';
+                node.append(face, el('div', 'tag', pad(seat) + '號 欠' + n));
+                ov.appendChild(node);
+                const speed = 0.6 + Math.random() * 0.9 + n * 0.15;
+                const a = Math.random() * Math.PI * 2;
+                return {
+                    node, r: size * 0.6,
+                    x: size + Math.random() * Math.max(1, W - size * 2), y: 120 + Math.random() * Math.max(1, H - 220 - size),
+                    vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, speed,
+                    rot: 0, phase: Math.random() * Math.PI * 2, ghost: 0,
+                };
+            });
+            const step = () => {
+                const W = window.innerWidth, H = window.innerHeight, t = performance.now() / 1000;
+                for (const k of skulls) {
+                    // 偶爾換方向亂跑
+                    if (Math.random() < 0.01) { const a = Math.random() * Math.PI * 2; k.vx = Math.cos(a) * k.speed; k.vy = Math.sin(a) * k.speed; }
+                    // 偶爾隱身
+                    if (k.ghost <= 0 && Math.random() < 0.003) k.ghost = 90;
+                    if (k.ghost > 0) k.ghost--;
+                }
+                // 互相推擠
+                for (let i = 0; i < skulls.length; i++) {
+                    for (let j = i + 1; j < skulls.length; j++) {
+                        const a = skulls[i], b = skulls[j];
+                        const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy) || 1, min = a.r + b.r;
+                        if (dist < min) {
+                            const push = (min - dist) / 2, nx = dx / dist, ny = dy / dist;
+                            a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+                            a.vx -= nx * 0.3; a.vy -= ny * 0.3; b.vx += nx * 0.3; b.vy += ny * 0.3;
+                            a.rot = -18; b.rot = 18;   // 被擠到會歪一下
+                        }
+                    }
+                }
+                for (const k of skulls) {
+                    const v = Math.hypot(k.vx, k.vy) || 1;
+                    if (v > k.speed * 2) { k.vx *= k.speed * 2 / v; k.vy *= k.speed * 2 / v; }
+                    k.x += k.vx; k.y += k.vy;
+                    if (k.x < k.r) { k.x = k.r; k.vx = Math.abs(k.vx); }
+                    if (k.x > W - k.r) { k.x = W - k.r; k.vx = -Math.abs(k.vx); }
+                    if (k.y < 100 + k.r * 0.5) { k.y = 100 + k.r * 0.5; k.vy = Math.abs(k.vy); }
+                    if (k.y > H - 60 - k.r) { k.y = H - 60 - k.r; k.vy = -Math.abs(k.vy); }
+                    k.rot *= 0.92;
+                    const wobble = Math.sin(t * 4 + k.phase) * 10 + k.rot;
+                    const bob = Math.sin(t * 2.5 + k.phase) * 6;
+                    const op = k.ghost > 0 ? 0.15 + 0.85 * Math.abs(Math.cos(k.ghost / 90 * Math.PI)) : 1;
+                    k.node.style.opacity = op;
+                    k.node.style.transform = 'translate(' + (k.x - k.r) + 'px,' + (k.y - k.r + bob) + 'px) rotate(' + wobble + 'deg)';
+                }
+                doomFrame = requestAnimationFrame(step);
+            };
+            doomFrame = requestAnimationFrame(step);
+        }
+        function stopDoom() {
+            cancelAnimationFrame(doomFrame);
+            const ov = document.getElementById('doomOverlay');
+            if (ov) ov.remove();
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') stopDoom(); });
 
         function findCard(id) {
             return board.daily.find(c => c.id === id) || board.exam.find(c => c.id === id);
@@ -704,6 +897,7 @@
 
             const header = el('div', 'card-header');
             const title = el('div', 'card-title', (kind === 'exam' ? '📝 ' : '') + card.name);
+            if (hasNewer(card, kind)) title.appendChild(el('span', 'old-tag', '⏰ 舊的'));
             title.title = card.name + (card.createdBy ? '（' + card.createdBy + ' 建立）' : '');
             header.appendChild(title);
 
@@ -739,6 +933,13 @@
                 if (m && (card.statuses[s - 1] || 0) > 0) {
                     btn.title = m.by + ' ' + fmtTime(m.at) + ' 登記';
                     if (m.by !== '老師' && m.short) btn.appendChild(el('span', 'mark-badge', m.short));
+                }
+                const owed = olderOwed(card, kind, s);
+                if (owed > 0) {
+                    btn.classList.add('owes-old');
+                    if (owed >= 2) btn.classList.add('owes-many');
+                    btn.appendChild(el('span', 'owe-badge', '欠' + owed));
+                    btn.title = (btn.title ? btn.title + '\n' : '') + '還欠 ' + owed + ' 份之前的「' + card.baseName + '」';
                 }
                 if (pendingSeats.has(card.id + ':' + s)) btn.classList.add('pending');
                 if (loggedIn()) bindNodeEvents(btn, card.id, s);
@@ -1052,7 +1253,10 @@
             try {
                 const r = await withPending(() => api('POST', '/api/cards', body));
                 await loadBoard(false);
-                toast(r.escalatedFrom ? '已掛上「' + r.name + '」，「' + r.escalatedFrom + '」沒交的人已自動升級' : '已掛上「' + r.name + '」', true);
+                const nc = findCard(r.id);
+                let owing = 0;
+                if (nc) for (let s = 1; s <= board.studentCount; s++) if (olderOwed(nc, body.kind, s) > 0) owing++;
+                toast(owing ? '已掛上「' + r.name + '」；「' + r.escalatedFrom + '」沒交的 ' + owing + ' 人已經併進來，格子上會出現 💀' : '已掛上「' + r.name + '」', true);
                 return true;
             } catch (e) {
                 toast(e.message);

@@ -87,9 +87,18 @@ async function runTests() {
     eq(c.statuses.every(s => s === 0), true);
   });
 
-  await test('同名同優先順序不能重複', async () => {
-    eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '數習', priority: 3 })).status, 201);
-    eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '數習', priority: 3 })).status, 409);
+  await test('同一天再開同名作業：名稱自動加上 ②，舊卡併進新卡', async () => {
+    const a = await call('POST', '/api/cards', { kind: 'daily', baseName: '數習' });
+    eq(a.status, 201);
+    const b = await call('POST', '/api/cards', { kind: 'daily', baseName: '數習' });
+    eq(b.status, 201);
+    eq(b.data.name, a.data.name + ' ②');
+    const list = (await board()).daily.filter(c => c.baseName === '數習');
+    eq(list.map(c => c.id), [b.data.id], '看板上只剩新卡');
+    eq((await call('POST', '/api/cards', { kind: 'exam', subject: '數學', unit: '一' })).status, 201);
+    eq((await call('POST', '/api/cards', { kind: 'exam', subject: '數學', unit: '一' })).status, 409, '考試同單元不能重複');
+    const e = (await board()).exam.find(c => c.name === '數學-一');
+    eq((await call('DELETE', `/api/cards/${e.id}`)).status, 200);
   });
 
   await test('兩台裝置同時點不同座號，兩個都會存到', async () => {
@@ -109,20 +118,37 @@ async function runTests() {
     eq((await call('PUT', '/api/cards/99999/seats/1', { status: 1 })).status, 404);
   });
 
-  await test('再開同名作業：沒交的人自動升級，上一張收起來', async () => {
+  await test('再開同名作業：沒交的人併進新卡並升級，記錄欠幾份，上一張收起來', async () => {
     const old = await cardByName('數習');
     await call('PUT', `/api/cards/${old.id}/seats/1`, { status: 1 });
     await call('PUT', `/api/cards/${old.id}/seats/2`, { status: 2 });
     await call('PUT', `/api/cards/${old.id}/seats/3`, { status: 3 });
-    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '數習', priority: 1 });
+    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '數習' });
     eq(r.status, 201);
-    eq(r.data.escalatedFrom, old.name);
-    const b = await board();
-    const list = b.daily.filter(c => c.name.startsWith('數習'));
+    eq([r.data.escalatedFrom, r.data.merged], [old.name, 3]);
+    let list = (await board()).daily.filter(c => c.baseName === '數習');
     eq(list.length, 1, '只剩一張數習');
     eq(list[0].statuses.slice(0, 4), [2, 3, 3, 0]);
+    eq(list[0].carried, { 1: 1, 2: 1, 3: 1 });
     const trash = (await call('GET', '/api/trash')).data;
     eq(trash.cards.find(c => c.id === old.id)?.reason, 'escalated');
+
+    // 再開一輪：還沒交的人欠的份數累加
+    const mid = list[0];
+    eq((await call('PUT', `/api/cards/${mid.id}/seats/2`, { status: 0 })).status, 200);
+    const r2 = await call('POST', '/api/cards', { kind: 'daily', baseName: '數習' });
+    list = (await board()).daily.filter(c => c.baseName === '數習');
+    eq(list.map(c => c.id), [r2.data.id]);
+    eq(list[0].carried, { 1: 2, 3: 2 }, '01、03 欠兩份，02 已銷帳');
+    eq(list[0].statuses.slice(0, 4), [3, 0, 3, 0]);
+  });
+
+  await test('老師銷帳時，併進來的欠交一起清掉', async () => {
+    const c = await cardByName('數習');
+    eq((await call('PUT', `/api/cards/${c.id}/seats/3`, { status: 0 })).status, 200);
+    const after = await cardByName('數習');
+    eq(after.carried, { 1: 2 });
+    eq(after.statuses[2], 0);
   });
 
   await test('全班完成時卡片自動收起，可以復原', async () => {
@@ -169,13 +195,14 @@ async function runTests() {
 
   await test('再開同名作業：沿用上一張的分類和位置', async () => {
     const old = await cardByName('背');
+    const before = (await board()).daily.findIndex(x => x.id === old.id);
     eq((await call('PUT', `/api/cards/${old.id}/seats/5`, { status: 1 })).status, 200);
-    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '背', priority: 4 });
+    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '背' });
     eq(r.status, 201);
     const b = await board();
     const c = b.daily.find(x => x.id === r.data.id);
-    eq([c.track, c.statuses[4]], ['chinese', 2]);
-    eq(b.daily.findIndex(x => x.id === r.data.id), 1, '新卡片在原本的位置');
+    eq([c.track, c.statuses[4], c.carried], ['chinese', 2, { 5: 1 }]);
+    eq(b.daily.findIndex(x => x.id === r.data.id), before, '新卡片在原本的位置');
   });
 
   await test('清空後全部可以復原，狀態還在', async () => {
@@ -323,6 +350,16 @@ async function runHelperTests() {
     eq((await call('POST', '/api/auth', undefined, 'zhen-new-1')).data.name, '棒棒蓁');
     zhen = 'zhen-new-1';
     eq((await change({ oldPassword: zhen, newPassword: 'zhen-new-2' }, null)).status, 401, '沒登入不能改');
+  });
+
+  await test('秘書開新一輪時併進來的欠交，秘書不能取消', async () => {
+    const old = await cardByName('圈詞');
+    eq((await seat(old.id, 9, 1, fox)).status, 200);
+    const r = await call('POST', '/api/cards', { kind: 'daily', baseName: '圈詞' }, fox);
+    eq(r.status, 201);
+    eq((await undo(r.data.id, 9, fox)).status, 200);
+    const c = (await board()).daily.find(x => x.id === r.data.id);
+    eq([c.statuses[8], c.carried[9]], [2, 1], '取消後欠交還在');
   });
 
   await test('老師改名、重設密碼、停用帳號', async () => {

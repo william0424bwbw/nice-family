@@ -195,7 +195,7 @@ async function getBoard(db: D1Database, actor: Actor | null) {
     db.prepare("SELECT value FROM settings WHERE key = 'student_count'"),
     db.prepare(`SELECT id, kind, name, base_name, priority, locked, created_at, created_by, track FROM cards
                 WHERE deleted_at IS NULL ORDER BY sort_order IS NULL, sort_order, priority, created_at, id`),
-    db.prepare(`SELECT s.card_id, s.seat, s.status, s.updated_by, s.updated_at FROM card_status s
+    db.prepare(`SELECT s.card_id, s.seat, s.status, s.updated_by, s.updated_at, s.carried FROM card_status s
                 JOIN cards c ON c.id = s.card_id WHERE c.deleted_at IS NULL`),
     db.prepare(`SELECT id, icon, name, description, url, created_at FROM albums
                 WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`),
@@ -205,12 +205,13 @@ async function getBoard(db: D1Database, actor: Actor | null) {
   const shortOf = new Map<string, string>([[TEACHER.name, TEACHER.short]]);
   for (const a of accounts.results as { name: string; short: string }[]) shortOf.set(a.name, a.short);
 
-  const byCard = new Map<number, { statuses: number[]; marks: Record<string, { by: string; short: string; at: number }> }>();
-  for (const c of cards.results as unknown as CardRow[]) byCard.set(c.id, { statuses: Array(n).fill(0), marks: {} });
-  for (const s of statuses.results as { card_id: number; seat: number; status: number; updated_by: string | null; updated_at: number }[]) {
+  const byCard = new Map<number, { statuses: number[]; carried: Record<string, number>; marks: Record<string, { by: string; short: string; at: number }> }>();
+  for (const c of cards.results as unknown as CardRow[]) byCard.set(c.id, { statuses: Array(n).fill(0), carried: {}, marks: {} });
+  for (const s of statuses.results as { card_id: number; seat: number; status: number; updated_by: string | null; updated_at: number; carried: number }[]) {
     const entry = byCard.get(s.card_id);
     if (!entry || s.seat > n) continue;
     entry.statuses[s.seat - 1] = s.status;
+    if (s.carried > 0) entry.carried[String(s.seat)] = s.carried;
     if (s.updated_by) entry.marks[String(s.seat)] = { by: s.updated_by, short: shortOf.get(s.updated_by) || s.updated_by.slice(-1), at: s.updated_at };
   }
   const out = (kind: Kind) => (cards.results as unknown as CardRow[])
@@ -228,6 +229,8 @@ async function getBoard(db: D1Database, actor: Actor | null) {
       };
       // 沒設定分類的卡片不帶這個欄位（由前端依名稱自動判斷）
       if (c.track) card.track = c.track;
+      // 併進來的舊欠交（骷髏標記用），沒有就不帶
+      if (Object.keys(e.carried).length) card.carried = e.carried;
       // 誰登記的：只給登入的人看（家長畫面不顯示秘書名字）
       if (actor) {
         card.createdBy = c.created_by;
@@ -262,26 +265,41 @@ async function createCard(db: D1Database, actor: Actor, body: Record<string, unk
     baseName = name = `${subject}-${unit}`;
   }
 
-  const dup = await db.prepare(`SELECT id FROM cards WHERE deleted_at IS NULL AND kind = ? AND name = ? AND priority = ?`)
-    .bind(kind, name, priority).first();
-  if (dup) throw new HttpError(409, `已經有「${name}」而且優先順序相同的卡片`);
-
-  const n = await studentCount(db);
+const n = await studentCount(db);
   const statuses: number[] = Array(n).fill(defaultDebt ? 1 : 0);
+  const carried: number[] = Array(n).fill(0);
 
-  // 日常作業：再開同名作業時，上一張沒交的人自動升級（1 → 2，2/3 → 3），上一張卡收起來
-  let previous: { id: number; name: string; sort_order: number | null } | null = null;
-  if (kind === 'daily') {
-    previous = await db.prepare(`SELECT id, name, sort_order FROM cards WHERE deleted_at IS NULL AND kind = 'daily' AND base_name = ?
-                                 ORDER BY created_at DESC, id DESC LIMIT 1`).bind(baseName).first();
-    if (previous) {
-      const old = await db.prepare('SELECT seat, status FROM card_status WHERE card_id = ?').bind(previous.id)
-        .all<{ seat: number; status: number }>();
-      for (const r of old.results) {
-        if (r.seat > n) continue;
-        statuses[r.seat - 1] = r.status === 1 ? 2 : 3;
-      }
+  // 看板上同名的舊卡
+  const siblings = (await db.prepare(`SELECT id, name, sort_order FROM cards
+      WHERE deleted_at IS NULL AND kind = ? AND base_name = ? ORDER BY created_at DESC, id DESC`).bind(kind, baseName)
+    .all<{ id: number; name: string; sort_order: number | null }>()).results;
+  if (kind === 'exam' && siblings.some(c => c.name === name)) throw new HttpError(409, `已經有「${name}」了`);
+
+  // 同一天再開同名作業：名稱加上 ②、③…（包含今天已經被併掉的卡片名稱）
+  const recent = await db.prepare('SELECT name FROM cards WHERE kind = ? AND base_name = ? AND created_at > ?')
+    .bind(kind, baseName, now - 2 * DAY).all<{ name: string }>();
+  const used = new Set(recent.results.map(c => c.name));
+  if (used.has(name)) {
+    let k = 2;
+    while (k <= 20 && used.has(`${name} ${String.fromCharCode(0x245f + k)}`)) k++;
+    if (k > 20) throw new HttpError(409, `「${name}」開太多張了`);
+    name = `${name} ${String.fromCharCode(0x245f + k)}`;
+  }
+
+  // 日常作業：舊卡沒交的人併進新卡（1 → 2，2/3 → 3），併進來幾份記在 carried，舊卡收起來
+  let merged = 0;
+  if (kind === 'daily' && siblings.length) {
+    const ids = siblings.map(c => c.id);
+    const old = await db.prepare(`SELECT seat, status, carried FROM card_status
+        WHERE card_id IN (${ids.map(() => '?').join(',')}) AND status > 0`).bind(...ids)
+      .all<{ seat: number; status: number; carried: number }>();
+    for (const r of old.results) {
+      if (r.seat > n) continue;
+      const i = r.seat - 1;
+      statuses[i] = Math.max(statuses[i], r.status === 1 ? 2 : 3);
+      carried[i] += 1 + (r.carried || 0);
     }
+    merged = carried.filter(c => c > 0).length;
   }
 
   // 沒指定分類：沿用最近一張同名卡片的分類（包含已收起的）
@@ -290,28 +308,33 @@ async function createCard(db: D1Database, actor: Actor, body: Record<string, unk
                                    ORDER BY created_at DESC, id DESC LIMIT 1`).bind(kind, baseName).first<{ track: Track }>();
     track = last?.track ?? null;
   }
-  // 催繳升級：新卡片放在上一張的位置
-  const sortOrder = previous?.sort_order ?? null;
+  // 新卡片放在上一張的位置
+  const sortOrder = siblings[0]?.sort_order ?? null;
 
-  // 同一個交易：新增卡片 → 寫入狀態 → 收起上一張 → 紀錄
+  // 同一個交易：新增卡片 → 寫入狀態 → 收起舊卡 → 紀錄
   const stmts: D1PreparedStatement[] = [
     db.prepare(`INSERT INTO cards (kind, name, base_name, priority, locked, created_at, updated_at, created_by, track, sort_order)
                 VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`).bind(kind, name, baseName, priority, now, now, actor.name, track, sortOrder),
   ];
-  statuses.forEach((s, i) => {
-    if (s > 0) {
-      stmts.push(db.prepare(`INSERT INTO card_status (card_id, seat, status, updated_at, updated_by, prev_status)
-                             SELECT MAX(id), ?, ?, ?, ?, 0 FROM cards`).bind(i + 1, s, now, actor.name));
+  statuses.forEach((st, i) => {
+    if (st > 0) {
+      // 併進來的欠交：prev_status 設成目前狀態，秘書「取消」時不會把舊的欠交一起取消
+      const prev = carried[i] > 0 ? st : 0;
+      stmts.push(db.prepare(`INSERT INTO card_status (card_id, seat, status, updated_at, updated_by, prev_status, carried)
+                             SELECT MAX(id), ?, ?, ?, ?, ?, ? FROM cards`).bind(i + 1, st, now, actor.name, prev, carried[i]));
     }
   });
-  if (previous) {
-    stmts.push(db.prepare(`UPDATE cards SET deleted_at = ?, deleted_reason = 'escalated', updated_at = ?
-                           WHERE id = ? AND deleted_at IS NULL`).bind(now, now, previous.id));
+  if (kind === 'daily') {
+    for (const c of siblings) {
+      stmts.push(db.prepare(`UPDATE cards SET deleted_at = ?, deleted_reason = 'escalated', updated_at = ?
+                             WHERE id = ? AND deleted_at IS NULL`).bind(now, now, c.id));
+    }
   }
-  stmts.push(audit(db, now, actor, 'card.create', { kind, name, priority, track, defaultDebt, previous: previous?.id ?? null }));
+  const previous = kind === 'daily' ? siblings.map(c => c.id) : [];
+  stmts.push(audit(db, now, actor, 'card.create', { kind, name, priority, track, defaultDebt, previous, merged }));
   const results = await db.batch(stmts);
   const id = results[0].meta.last_row_id;
-  return { id, name, escalatedFrom: previous?.name ?? null };
+  return { id, name, escalatedFrom: previous.length ? siblings[0].name : null, merged };
 }
 
 interface StatusRow {
