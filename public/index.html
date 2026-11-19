@@ -156,6 +156,14 @@
         .btn-restore { background: #2a9d8f; color: white; border: none; border-radius: 6px; padding: 4px 10px; font-weight: bold; cursor: pointer; flex-shrink: 0; }
 
         /* 提示訊息 */
+        /* NICE 保衛戰：看板最下面的操場（平板、電腦才有；動畫在 battle.js） */
+        #playground { display: none; position: relative; height: 44px; max-width: 1450px; margin: 10px auto 0; }
+        #playground.battle-on { height: 300px; }
+        @media (min-width: 768px) { #playground { display: block; } }
+        #playground .pg-label { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: #3e3e50; font-weight: 900; font-size: 0.8rem; letter-spacing: 0.2em; pointer-events: none; }
+        #playground:not(.battle-on) .pg-label { display: none; }
+        #battleToggle { position: absolute; left: 0; bottom: 6px; z-index: 6; background: #252530; color: #a8a4ba; border: 1px solid #3e3e50; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
+        #battleToggle:focus-visible { outline: 3px solid #4cc9f0; outline-offset: 2px; }
         .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #e63946; color: white; padding: 10px 16px; border-radius: 10px; font-weight: bold; z-index: 200; display: none; max-width: calc(100% - 32px); box-sizing: border-box; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
         .toast.ok { background: #2a9d8f; }
         .toast.show { display: block; }
@@ -368,6 +376,8 @@
         </div>
         <div class="wall-grid" id="wallGrid"></div>
     </div>
+
+    <div id="playground"><div class="pg-label">操 場</div></div>
 
     <!-- 老師登入 -->
     <div class="overlay" id="loginOverlay">
@@ -869,6 +879,7 @@
             renderPhotoGallery();
             if (document.getElementById('shutUpWall').style.display === 'block') buildShutUpWall();
             if (document.getElementById('counterOverlay').classList.contains('show')) renderCounter();
+            syncBattle();
         }
 
         function renderTracks(kind, chId, mathId, chTitle, mathTitle) {
@@ -928,6 +939,7 @@
             const matrix = el('div', 'student-matrix');
             for (let s = 1; s <= board.studentCount; s++) {
                 const btn = el('button', '', pad(s));
+                btn.dataset.seat = s;
                 paintNode(btn, card.statuses[s - 1] || 0);
                 const m = markOf(card, s);
                 if (m && (card.statuses[s - 1] || 0) > 0) {
@@ -1635,6 +1647,15 @@
             customInput.style.display = select.value === 'CUSTOM' ? 'inline-block' : 'none';
             if (select.value === 'CUSTOM') customInput.focus();
         }
+
+        // ---------- NICE 保衛戰（操場動畫，在 battle.js） ----------
+        // 籠子裡的人 = 有作業逾期的座號；看板資料讀到之後才開始
+        function syncBattle() {
+            if (!lastLoadOk || !window.NiceBattle) return;
+            const cards = [...board.daily, ...board.exam].map(c => ({ id: c.id, name: c.name, statuses: c.statuses }));
+            window.NiceBattle.sync(board.studentCount, overdueCounts(), cards);
+        }
     </script>
+    <script src="/battle.js" defer></script>
 </body>
 </html>
