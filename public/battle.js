@@ -269,7 +269,14 @@
     a.air = false; a.vx = 0; a.vy = 0; a.rot = 0; a.y = s.top; a.surf = s.id;
     if (a.act.type !== 'thrown') dust(a.x, a.y, a.kind === 'bear' ? 10 : 4);
     if (a.kind === 'kid' && s.floor && a.x > kidMaxX()) {
-      if (a.x >= pit.x1) { sinkIntoPool(a); return true; }
+      if (a.x >= pit.x1) {
+        if (a.sinkMsg) { sinkIntoPool(a); return true; }      // 滑手機掉進去
+        // 從卡片上跳下來剛好掉進綠池：被燙得跳出來，不會被關
+        a.goal = null; a.air = true; a.vx = -320; a.vy = -560; a.y = FLOOR - 2;
+        for (let k = 0; k < 8; k++) parts.push({ kind: 'drop', x: a.x, y: FLOOR - 4, vx: rand(-120, 120), vy: rand(-300, -100), life: 0.7, max: 0.7 });
+        say(a, '燙燙燙！', 1.2); setAct(a, 'flipHop');
+        return true;
+      }
       a.goal = null; say(a, '好險！差點掉進去！', 1.4);
       setAct(a, 'run', { tx: kidMaxX() - 40 }); return true;
     }
@@ -1215,7 +1222,7 @@
     s.dead = true; s.gone = true;
     for (let k = 0; k < 14; k++) parts.push({ kind: 'bone', x: s.x, y: s.y - 30 * s.s, vx: rand(-260, 260), vy: rand(-480, -150), rot: rand(0, 6), vr: rand(-12, 12), life: 2, max: 2, s: s.s });
     for (let k = 0; k < 12; k++) parts.push({ kind: 'puff', x: s.x + rand(-20, 20) * s.s, y: s.y - rand(5, 50) * s.s, vx: rand(-40, 40), vy: rand(-60, -10), life: 1, max: 1 });
-    setTimeout(() => { if (!skulls().some(k => !k.dead)) banner('🎉 大熊老師一記殺球，骷髏被打散了！（逾期沒補完，明天還會拼回來）'); }, 0);
+    setTimeout(() => { if (!skulls().some(k => !k.dead)) banner('🎉 大熊老師一記殺球，骷髏被打散了！（逾期沒補完，過幾分鐘又會拼回來）'); }, 0);
   }
   // 橫幅排隊：同時發生好幾件事（例如英雄補交＋全班交齊）時輪流顯示，每則至少 2.8 秒
   let bannerTimer = 0, bannerUntil = 0;
@@ -1652,7 +1659,7 @@
         const s = b.target;
         if (s.dead) b.target = null;
         else if (Math.hypot(b.x - s.x, b.y - (s.y - 30 * s.s)) < 34 * s.s) {
-          killSkull(s); S.defeated = true;
+          killSkull(s); S.defeated = true; S.defeatedAt = T;
           const next = b.chain && skulls().find(k => !k.dead);
           if (next) aimBall(b, next); else { b.target = null; b.vx = -200; b.vy = -400; }
         }
@@ -1667,7 +1674,8 @@
   let last = performance.now();
   function frame(now) {
     if (!running) return;
-    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));   // 第一格的時間可能比 last 早，不能是負的 last = now; T += dt;
+    // 第一格的時間可能比 last 早，不能是負的
+    const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now; T += dt;
     // 任何一格出錯都只跳過那一格，動畫不會整個停住
     const safe = (fn, label) => { try { fn(); } catch (e) { if (!safe.seen) { safe.seen = true; console.error('動畫錯誤（' + label + '）', e && e.stack || e); } } };
     agents = agents.filter(a => !a.gone);
@@ -1715,11 +1723,17 @@
   window.NiceBattle = { sync };
 
   // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒欠交的會放回來）
-  let nextClumsy = 90, nextRandomHunt = 200;
+  // 骷髏大約每 1～2 分鐘走出骷髏區抓一個人；沒欠交的人被抓進籠子，過一下會自己跑出來
+  let nextClumsy = 90, nextRandomHunt = rand(40, 80);
   setInterval(() => {
     if (!running) return;
     if (T > nextClumsy) { if (clumsy()) nextClumsy = T + rand(100, 160); else nextClumsy = T + 10; }
-    if (T > nextRandomHunt) { nextRandomHunt = T + rand(180, 300); if (!S.huntQueue.length) startHunt(); }
+    if (S.defeated && T - (S.defeatedAt || 0) > 300 && !S.hunting) { S.defeated = false; rebuildSkulls(true); if (skulls().length) banner('💀 骷髏又拼回來了！'); }
+    if (T > nextRandomHunt) {
+      // 沒有完整的骷髏（逾期不到 3 份或剛被打散）、有人正在被抓：10 秒後再試
+      const ok = !S.huntQueue.length && !S.hunting && startHunt();
+      nextRandomHunt = T + (ok ? rand(60, 120) : 10);
+    }
   }, 2000);
 
   // 大熊老師走到骷髏區前面才殺球

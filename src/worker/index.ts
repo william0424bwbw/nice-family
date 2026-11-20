@@ -2,6 +2,7 @@
 // 讀取（GET /api/board）公開；寫入要密碼（Authorization: Bearer <密碼>）
 //   老師（ADMIN_TOKEN）：所有功能
 //   小秘書（accounts 資料表）：新增卡片、把狀態往上調（登記沒交）、取消自己 5 分鐘內的登記
+//   協同老師（accounts.role = 'teacher'，例如導師二）：老師權限，但不能管理帳號
 
 export interface Env {
   DB: D1Database;
@@ -88,10 +89,10 @@ async function authenticate(request: Request, env: Env, now: number): Promise<Ac
 
   if (token && env.ADMIN_TOKEN && safeEqual(token, env.ADMIN_TOKEN)) return TEACHER;
   if (token) {
-    const accounts = await db.prepare('SELECT name, short, salt, password_hash FROM accounts WHERE active = 1')
-      .all<{ name: string; short: string; salt: string; password_hash: string }>();
+    const accounts = await db.prepare('SELECT name, short, role, salt, password_hash FROM accounts WHERE active = 1')
+      .all<{ name: string; short: string; role: string; salt: string; password_hash: string }>();
     for (const a of accounts.results) {
-      if (safeEqual(await sha256(a.salt + token), a.password_hash)) return { role: 'helper', name: a.name, short: a.short };
+      if (safeEqual(await sha256(a.salt + token), a.password_hash)) return { role: a.role === 'teacher' ? 'teacher' : 'helper', name: a.name, short: a.short };
     }
   }
 
@@ -111,6 +112,19 @@ function requireTeacher(actor: Actor | null): Actor {
   const a = requireActor(actor);
   if (a.role !== 'teacher') throw new HttpError(403, '這個功能只有老師可以使用');
   return a;
+}
+
+// 帳號管理只有大熊老師（ADMIN_TOKEN）可以，協同老師不行
+function requireOwner(actor: Actor | null): Actor {
+  const a = requireTeacher(actor);
+  if (a !== TEACHER) throw new HttpError(403, '帳號管理只有大熊老師可以使用');
+  return a;
+}
+
+function roleParam(v: unknown): 'helper' | 'teacher' {
+  if (v === undefined || v === 'helper') return 'helper';
+  if (v === 'teacher') return 'teacher';
+  throw new HttpError(400, '權限不正確');
 }
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
@@ -566,7 +580,7 @@ async function newPassword(db: D1Database, env: Env, exceptId: number | null, gi
 
 // 小秘書改自己的密碼：要先輸入舊密碼（避免別人拿她登入中的平板改掉）
 async function changeMyPassword(request: Request, db: D1Database, env: Env, actor: Actor, body: Record<string, unknown>, now: number) {
-  if (actor.role !== 'helper') throw new HttpError(400, '老師密碼請用部署設定修改');
+  if (actor === TEACHER) throw new HttpError(400, '老師密碼請用部署設定修改');
   const acc = await db.prepare('SELECT id, salt, password_hash FROM accounts WHERE name = ? AND active = 1').bind(actor.name)
     .first<{ id: number; salt: string; password_hash: string }>();
   if (!acc) throw new HttpError(404, '找不到這個帳號');
@@ -591,7 +605,7 @@ async function changeMyPassword(request: Request, db: D1Database, env: Env, acto
 }
 
 async function listAccounts(db: D1Database) {
-  const r = await db.prepare('SELECT id, name, short, active, created_at AS createdAt FROM accounts ORDER BY id').all();
+  const r = await db.prepare('SELECT id, name, short, role, active, created_at AS createdAt FROM accounts ORDER BY id').all();
   return { accounts: r.results.map(a => ({ ...a, active: a.active === 1 })) };
 }
 
@@ -599,14 +613,15 @@ async function createAccount(db: D1Database, env: Env, actor: Actor, body: Recor
   const name = text(body.name, '名稱', 12);
   if (name === TEACHER.name) throw new HttpError(400, '名稱不能是「老師」');
   const short = text(body.short, '徽章字', 2, false) || [...name].slice(-1).join('');
+  const role = roleParam(body.role);
   const password = await newPassword(db, env, null, body.password);
   const salt = randomSalt();
   const exists = await db.prepare('SELECT id FROM accounts WHERE name = ?').bind(name).first();
   if (exists) throw new HttpError(409, `已經有「${name}」了`);
   const [r] = await db.batch([
-    db.prepare(`INSERT INTO accounts (name, short, salt, password_hash, active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 1, ?, ?)`).bind(name, short, salt, await sha256(salt + password), now, now),
-    audit(db, now, actor, 'account.create', { name }),
+    db.prepare(`INSERT INTO accounts (name, short, role, salt, password_hash, active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?)`).bind(name, short, role, salt, await sha256(salt + password), now, now),
+    audit(db, now, actor, 'account.create', { name, role }),
   ]);
   return { id: r.meta.last_row_id, password };
 }
@@ -618,6 +633,10 @@ async function updateAccount(db: D1Database, env: Env, actor: Actor, id: number,
   const binds: unknown[] = [];
   const stmts: D1PreparedStatement[] = [];
   let password: string | undefined;
+  if (body.role !== undefined) {
+    sets.push('role = ?');
+    binds.push(roleParam(body.role));
+  }
   if (body.name !== undefined) {
     const name = text(body.name, '名稱', 12);
     if (name === TEACHER.name) throw new HttpError(400, '名稱不能是「老師」');
@@ -708,11 +727,13 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   m = path.match(/^\/api\/albums\/(\d+)$/);
   if (m && method === 'DELETE') return json(await setAlbumDeleted(db, teacher, idParam(m[1]), true, now));
 
-  if (method === 'GET' && path === '/api/accounts') return json(await listAccounts(db));
-  if (method === 'POST' && path === '/api/accounts') return json(await createAccount(db, env, teacher, await readBody(request), now), 201);
-
-  m = path.match(/^\/api\/accounts\/(\d+)$/);
-  if (m && method === 'PATCH') return json(await updateAccount(db, env, teacher, idParam(m[1]), await readBody(request), now));
+  if (path.startsWith('/api/accounts')) {
+    const owner = requireOwner(actor);
+    if (method === 'GET' && path === '/api/accounts') return json(await listAccounts(db));
+    if (method === 'POST' && path === '/api/accounts') return json(await createAccount(db, env, owner, await readBody(request), now), 201);
+    m = path.match(/^\/api\/accounts\/(\d+)$/);
+    if (m && method === 'PATCH') return json(await updateAccount(db, env, owner, idParam(m[1]), await readBody(request), now));
+  }
 
   throw new HttpError(404, '找不到這個功能');
 }

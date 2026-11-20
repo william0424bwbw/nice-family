@@ -374,6 +374,28 @@ async function runHelperTests() {
     eq((await call('POST', '/api/auth', undefined, fox2)).status, 401, '停用後不能登入');
   });
 
+  await test('導師二（老師權限的帳號）：可以銷帳、復原，不能管理帳號', async () => {
+    const r = await call('POST', '/api/accounts', { name: '導師二', short: '導二', role: 'teacher' });
+    eq(r.status, 201);
+    let co = r.data.password;
+    const me = (await call('POST', '/api/auth', undefined, co)).data;
+    eq([me.role, me.name, me.short], ['teacher', '導師二', '導二']);
+    eq((await call('GET', '/api/trash', undefined, co)).status, 200, '可以看復原');
+    const c = await cardByName('圈詞');
+    eq((await call('PUT', `/api/cards/${c.id}/seats/3`, { status: 2 }, co)).status, 200);
+    eq((await call('PUT', `/api/cards/${c.id}/seats/3`, { status: 0 }, co)).status, 200, '可以銷帳');
+    eq((await call('GET', '/api/accounts', undefined, co)).status, 403, '不能看帳號');
+    eq((await call('POST', '/api/accounts', { name: '偷開' }, co)).status, 403, '不能開帳號');
+    eq((await call('PATCH', `/api/accounts/${r.data.id}`, { role: 'helper' }, co)).status, 403, '不能改自己權限');
+    eq((await call('POST', '/api/me/password', { oldPassword: co, newPassword: 'co-teacher-2' }, co)).status, 200, '可以改自己的密碼');
+    co = 'co-teacher-2';
+    const list = (await call('GET', '/api/accounts')).data.accounts;
+    eq(list.find(a => a.id === r.data.id).role, 'teacher');
+    eq((await call('PATCH', `/api/accounts/${r.data.id}`, { role: 'helper' })).status, 200, '大熊老師改回小秘書');
+    eq((await call('GET', '/api/trash', undefined, co)).status, 403, '改回小秘書後不能看復原');
+    eq((await call('POST', '/api/accounts', { name: '怪', role: 'boss' })).status, 400, '權限不正確');
+  });
+
   // 放最後：會讓這個 IP 被擋 10 分鐘
   await test('密碼錯誤太多次會被擋下，之後連正確密碼也先擋', async () => {
     const codes = [];

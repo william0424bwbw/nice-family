@@ -171,6 +171,7 @@
 
         /* 只有老師看得到的按鈕 */
         body:not(.role-teacher) .teacher-only { display: none !important; }
+        body:not(.role-owner) .owner-only { display: none !important; }
         .btn-counter { background-color: #f4a261; color: #1e1e24; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
         .btn-helpers { background-color: #7209b7; color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
 
@@ -312,7 +313,7 @@
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
             <button class="btn-doom" onclick="playDoom()">☠️ 欠交大魔王</button>
             <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
-            <button class="btn-helpers teacher-only" onclick="openAccounts()">👥 小秘書</button>
+            <button class="btn-helpers teacher-only owner-only" onclick="openAccounts()">👥 小秘書</button>
             <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
             <button class="btn-clear-all teacher-only" onclick="triggerClear()">🧹 清空日常作業</button>
         </div>
@@ -336,7 +337,7 @@
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
             <button class="btn-doom" onclick="playDoom()">☠️ 欠交大魔王</button>
             <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
-            <button class="btn-helpers teacher-only" onclick="openAccounts()">👥 小秘書</button>
+            <button class="btn-helpers teacher-only owner-only" onclick="openAccounts()">👥 小秘書</button>
             <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
             <button class="btn-clear-all teacher-only" onclick="triggerClear()">🧹 清空學期考試</button>
         </div>
@@ -462,6 +463,8 @@
         const isTeacher = () => auth.role === 'teacher';
         const isHelper = () => auth.role === 'helper';
         const loggedIn = () => isTeacher() || isHelper();
+        // 大熊老師本人（帳號名稱不能叫「老師」）；導師二等協同老師是老師權限但不能管理帳號
+        const isOwner = () => isTeacher() && auth.name === '老師';
         const undoMs = () => board.undoMs || 300000;
 
         // ---------- 共用 ----------
@@ -592,7 +595,7 @@
                 input.value = '';
                 document.getElementById('loginOverlay').classList.remove('show');
                 setAuth({ token: auth.token, role: me.role || 'teacher', name: me.name || '老師', short: me.short || '' });
-                toast(isHelper() ? '歡迎 ' + auth.name + '！' : '登入成功', true);
+                toast(isOwner() ? '登入成功' : '歡迎 ' + auth.name + '！', true);
                 loadBoard(false);
             } catch (e) {
                 auth = prev.role ? prev : { token: '', role: null, name: '', short: '' };
@@ -645,15 +648,18 @@
             document.body.classList.toggle('teacher-mode', loggedIn());
             document.body.classList.toggle('role-teacher', isTeacher());
             document.body.classList.toggle('role-helper', isHelper());
+            document.body.classList.toggle('role-owner', isOwner());
             document.getElementById('logoutBtn').style.display = loggedIn() ? 'inline-block' : 'none';
-            document.getElementById('myPwBtn').style.display = isHelper() ? 'inline-block' : 'none';
-            if (!isHelper()) closeMyPassword();
+            const ownPw = loggedIn() && !isOwner();      // 小秘書、導師二可以改自己的密碼
+            document.getElementById('myPwBtn').style.display = ownPw ? 'inline-block' : 'none';
+            if (!ownPw) closeMyPassword();
             document.getElementById('viewModeHint').textContent = isTeacher()
-                ? '🔒 大熊老師管理模式（點一下升一級，長按銷帳；多台裝置可以同時使用）'
+                ? (isOwner() ? '🔒 大熊老師管理模式' : '🔒 ' + auth.name + ' 管理模式') + '（點一下升一級，長按銷帳；多台裝置可以同時使用）'
                 : isHelper()
                     ? '📝 小秘書 ' + auth.name + ' 登記模式（點一下登記沒交，自己 5 分鐘內的可以長按取消）'
                     : '👁️ 家長/學生即時查閱看板（每 10 秒自動更新）';
-            if (!isTeacher()) { closeCounter(); closeAccounts(); closeTrash(); }
+            if (!isTeacher()) { closeCounter(); closeTrash(); }
+            if (!isOwner()) closeAccounts();
             updateControlPanelVisibility();
             renderAll();
         }
@@ -1396,7 +1402,7 @@
 
         // ---------- 小秘書管理（老師） ----------
         async function openAccounts() {
-            if (!isTeacher()) return;
+            if (!isOwner()) return;
             document.getElementById('accountsOverlay').classList.add('show');
             document.getElementById('accountsPassword').replaceChildren();
             await loadAccounts();
@@ -1425,6 +1431,7 @@
                     const row = el('div', 'acct-row');
                     const head = el('div', 'acct-head');
                     head.append(el('span', 'acct-badge', a.short || '?'), el('strong', '', a.name),
+                        el('span', 'trash-meta', a.role === 'teacher' ? '👑 老師權限' : '📝 小秘書'),
                         el('span', a.active ? 'acct-on' : 'acct-off', a.active ? '啟用中' : '已停用'));
                     row.appendChild(head);
                     const actions = el('div', 'acct-actions');
@@ -1434,7 +1441,14 @@
                     reset.onclick = () => resetPassword(a);
                     const toggle = el('button', '', a.active ? '⏸ 停用' : '▶ 啟用');
                     toggle.onclick = () => patchAccount(a, { active: !a.active }, a.active ? '已停用 ' + a.name : '已啟用 ' + a.name);
-                    actions.append(rename, reset, toggle);
+                    // 小秘書只能登記；老師權限（例如導師二）可以銷帳、清空、復原，但不能管理帳號
+                    const isT = a.role === 'teacher';
+                    const role = el('button', '', isT ? '📝 改回小秘書' : '👑 改成老師權限');
+                    role.onclick = () => {
+                        if (!isT && !confirm('讓「' + a.name + '」有老師權限？\n可以銷帳、補交櫃台、刪卡、清空、復原（不能管理帳號）')) return;
+                        patchAccount(a, { role: isT ? 'helper' : 'teacher' }, a.name + (isT ? ' 改回小秘書' : ' 有老師權限了'));
+                    };
+                    actions.append(rename, reset, toggle, role);
                     row.appendChild(actions);
                     list.appendChild(row);
                 }
