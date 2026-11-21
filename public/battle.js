@@ -66,8 +66,11 @@
     pile = { x: 60 };
     towerX = Math.max(220, W * 0.3);
     if (S.tower > 0) m.set('tower', { id: 'tower', x1: towerX - 15, x2: towerX + 15, top: FLOOR - S.tower * 28 });
+    const old = surfaces;
     surfaces = m;
     for (const a of agents) {
+      const o = old.get(a.surf), n = m.get(a.surf);
+      if (o && n && !n.floor && !a.air && (o.x1 !== n.x1 || o.x2 !== n.x2)) a.x = n.x1 + clamp((a.x - o.x1) / Math.max(1, o.x2 - o.x1), 0, 1) * (n.x2 - n.x1);
       // 站的卡片不見了（被取下、換欄）：掉下來
       if (a.surf !== 'floor' && !m.has(a.surf)) {
         a.surf = 'floor';
@@ -342,6 +345,8 @@
       if (a.x < s.x1 || a.x > s.x2) continue;
       if (prevY <= s.top + 1 && a.y >= s.top && (!best || s.top < best.top)) best = s;
     }
+    // 版面變動（換場景、卡片換裝）時地板可能往上移，人已經在地板下面：直接站回地板，不會一直往下掉不見
+    if (!best && a.y >= FLOOR) { a.y = FLOOR; best = surfaces.get('floor'); }
     return best;
   }
 
@@ -1046,7 +1051,7 @@
   const SCENE_AMBIENT = {
     ninja: ['🏯 忍者村的鐘聲響了', '🌸 櫻花瓣一直飄下來', '🥷 聽說今天下午有忍者考試', '🍡 有人在偷吃糰子', '🎋 竹林裡好像有人在練功'],
     ocean: ['🐠 一群熱帶魚游過去', '🫧 咕嚕咕嚕…到處都是泡泡', '🐢 遠遠的好像有一隻海龜', '🐙 章魚躲在石頭後面偷看', '🐚 沙子裡有好多貝殼'],
-    icefire: ['🌋 火山轟隆隆地在冒煙', '🧊 冰牆後面好像有東西在走…', '🐉 遠遠的好像聽到龍在叫', '🧟 冰原上的殭屍眼睛在發藍光', '🔥 左邊冷得發抖、右邊熱到流汗', '❄️ 凜冬將至…'],
+    icefire: ['🌋 火山轟隆隆地在冒煙', '🧊 冰牆後面好像有東西在走…', '🐉 遠遠的好像聽到龍在叫', '🧟 冰原上的殭屍眼睛在發藍光', '🔥 左邊冷得發抖、右邊熱到流汗', '❄️ 凜冬將至…', '🐺 冰原狼跟在主人旁邊，耳朵豎得高高的', '🥚 抱著龍蛋的人說：蛋好像越來越燙了…', '🗡️ 披著黑斗篷的守夜人在冰牆下巡邏', '🔥 火把的光把冰牆照得亮亮的'],
     snow: ['❄️ 好冷喔，大家呼出白白的氣', '⛄ 雪越下越大了', '🧤 有人的手套不見了', '☕ 好想喝一杯熱可可'],
   };
   // 聊天話題資料庫：[說話的人（0、1、2）, 台詞]；三個人聊時 2 號角色才會出現，兩個人聊時由 0 號代講
@@ -1537,13 +1542,13 @@
     { id: 'playground', label: '一 般', banner: '🏫 回到平常的樣子囉！' },
     { id: 'ninja', label: '忍 者 村', banner: '🥷 場景切換：忍者村！有人帶武士刀、有人拿長槍、有人穿和服，還會瞬間移動' },
     { id: 'ocean', label: '海 底', banner: '🌊 場景切換：海底世界！大家戴上潛水鏡，咕嚕咕嚕～' },
-    { id: 'snow', label: '雪 地', banner: '❄️ 場景切換：下雪了！到處白茫茫一片' },
-    { id: 'icefire', label: '冰 與 火', banner: '🔥❄️ 場景切換：冰與火！冰牆那邊冒出冰原殭屍，天上有黑色巨龍在飛' },
+    { id: 'snow', label: '雪 地', banner: '❄️ 場景切換：下雪了！大家穿上厚厚的雪衣，號碼都變成雪人了' },
+    { id: 'icefire', label: '冰 與 火', banner: '🔥❄️ 場景切換：冰與火！大家披上黑斗篷，有人拿長劍、有人舉火把、有人抱龍蛋，還有冰原狼跟著；天上有黑色巨龍在飛' },
   ];
   function applySceneDom() {
     const root = document.documentElement;
     if (running && S.scene !== 'playground') root.dataset.scene = S.scene; else delete root.dataset.scene;
-    setTimeout(() => { if (running) measure(); }, 450);     // 卡片換裝後高度會變，重新量站的位置
+    for (const ms of [120, 450, 1000]) setTimeout(() => { if (running) measure(); }, ms);     // 卡片換裝後大小會變，重新量站的位置
   }
   const sceneLabel = () => (SCENES.find(x => x.id === S.scene) || SCENES[0]).label;
   function setScene(id, quiet) {
@@ -1558,7 +1563,7 @@
     banner(SCENES.find(x => x.id === id).banner);
     if (pgLabel && !pgLabel.classList.contains('narr')) pgLabel.textContent = sceneLabel();
     // 換場景時大家嚇一跳、跳一下
-    for (const k of kids()) if (!k.air && STANDING.includes(k.act.type) && !k.fear && Math.random() < 0.5) { k.goal = null; setAct(k, 'flipHop'); k.vx = rand(-60, 60); k.vy = -460; k.air = true; }
+    for (const k of kids()) if (!k.air && STANDING.includes(k.act.type) && !k.fear && Math.random() < 0.5) { k.goal = null; setAct(k, 'flipHop'); k.vx = 0; k.vy = -380; k.air = true; }
     for (let i = 0; i < 6; i++) smoke(rand(80, kidMaxX()), FLOOR);
   }
   // 背景：雪地有雪和飄雪；忍者村有鳥居和櫻花瓣（都是淡淡的，不搶人物）
@@ -1718,7 +1723,7 @@
       g.fillStyle = '#e8dcc0'; g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + 4, wy - 9); g.lineTo(wx + 6, wy); g.closePath(); g.fill();
     }
     if (fire) {
-      if (!D.said) { D.said = true; narrate('🔥 黑龍噴火了！下面的人快跳開！', true); }
+      if (!D.said) { D.said = true; narrate('🔥 黑龍噴火了！好燙好燙好燙！', true); }
       const ca = Math.cos(0.6), sa = Math.sin(0.6);
       const mx = x + D.dir * (68 + 26) * k * 1, my = y + (-32 + 2) * k;
       const gx = mx + D.dir * 70, len = Math.hypot(gx - mx, FLOOR - my);
@@ -1737,9 +1742,9 @@
         g.beginPath(); g.moveTo(fx - 9, FLOOR); g.quadraticCurveTo(fx - 4, FLOOR - h * 0.6, fx, FLOOR - h); g.quadraticCurveTo(fx + 4, FLOOR - h * 0.6, fx + 9, FLOOR); g.closePath(); g.fill();
       }
       for (const kd of kids()) {
-        if (D.hit.has(kd) || kd.surf !== 'floor' || kd.air || Math.abs(kd.x - gx) > 70 || BUSY_ACTS.includes(kd.act.type)) continue;
-        D.hit.add(kd); kd.goal = null; setAct(kd, 'flipHop'); kd.vx = Math.sign(kd.x - gx || 1) * 140; kd.vy = -560; kd.air = true;
-        if (Math.random() < 0.5) say(kd, pick(['燙燙燙！', '我的屁股！', '哇啊～龍啊！']), 1.2, 1);
+        if (D.hit.has(kd) || kd.surf !== 'floor' || kd.air || Math.abs(kd.x - gx) > 90 || BUSY_ACTS.includes(kd.act.type)) continue;
+        D.hit.add(kd); kd.goal = null; kd.burn = T + 3.4; setAct(kd, 'flipHop'); kd.vx = 0; kd.vy = -430; kd.air = true;
+        if (Math.random() < 0.75) say(kd, pick(['燙燙燙！', '我的屁股著火了！', '頭髮燒焦了啦！', '呼呼呼～好燙！', '水！誰有水！', '我變烤肉了！']), 1.5, 1);
       }
     }
   }
@@ -3071,6 +3076,10 @@
   function drawAgent(a) {
     if (a.hidden) { a.bubbleAt = null; return; }
     if (a.morph) { drawMorph(a); return; }
+    if (a.burn) {
+      if (a.burn > T) { if (!a.air && a.act.type !== 'play') a.hop = Math.abs(Math.sin(T * 13)) * 7; }
+      else { a.burn = 0; if (a.act.type !== 'play') a.hop = 0; }
+    }
     const p = a.p || P({});
     const isBear = a.kind === 'bear';
     const j = joints(p, a.s, a.f, isBear);
@@ -3089,6 +3098,7 @@
     else if (!isBear) drawKid(a, j, s);
     g.restore();
     a.j = isBear ? drawBearReal(a) : { rH: W2(j.rH), lH: W2(j.lH), head: W2(j.head) };
+    if (a.burn > T) drawBurn(a.j.head[0], a.j.head[1] - 8 * a.s, a.s, a.burn - T);
     if (a.phone && !isBear) {
       const [x, y] = a.j.rH;
       g.save(); g.shadowColor = 'rgba(143,211,255,0.9)'; g.shadowBlur = 8;
@@ -3131,20 +3141,27 @@
   const KIMONO = ['#e05a8a', '#3d5a98', '#c0392b', '#2a9d8f', '#9b5de5', '#e9a23b'];
   const SCARF = { katana: '#b8323f', spear: '#2b5fa8', kunai: '#6a3cb0' };
   function drawKid(a, j, s) {
-    const nj = S.scene === 'ninja', f = a.f || 1;
+    const nj = S.scene === 'ninja', f = a.f || 1, snowy = S.scene === 'snow', icf = S.scene === 'icefire';
     const role = nj ? (a.kimono ? 'kimono' : roleOf(a)) : null;
-    const held = a.weapon || (role === 'spear' ? { kind: 'spear', ang: -Math.PI / 2 } : null);
+    const irole = icf ? ICE_ROLES[(a.num || 0) % ICE_ROLES.length] : null;
+    const held = a.weapon || (role === 'spear' ? { kind: 'spear', ang: -Math.PI / 2 } : null) || (irole && ICE_HELD[irole] && !a.item && a.act && a.act.type !== 'play' ? ICE_HELD[irole] : null);
+    if (irole === 'wolf' && a.act && !a.air && !a.rot) drawWolf(-f * 17 * s, Math.max(j.lF[1], j.rF[1]), f, s, !!a.act && ['walk', 'run', 'flee'].includes(a.act.type));
     if (nj) ninjaBack(a, j, s, f, role, held);
+    if (icf) drawCloak(a, j, s, f);
     g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 3.4 * s;
     poly([j.lF, j.lK, j.hip]); poly([j.rF, j.rK, j.hip]);
     if (role === 'kimono') drawKimono(a, j, s);
+    if (snowy) drawParka(a, j, s);
     g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 3.4 * s;
     poly([j.lH, j.lE, j.neck]); poly([j.hip, j.neck]); poly([j.rH, j.rE, j.neck]);
     if (role === 'kimono') drawSleeves(a, j, s);
+    if (snowy) drawParkaSleeves(a, j, s);
     else if (nj) { g.save(); g.shadowBlur = 0; g.fillStyle = SCARF[role] || '#b8323f'; g.fillRect(j.hip[0] - 3.2 * s, j.hip[1] - 2.6 * s, 6.4 * s, 2.6 * s); g.restore(); }   // 腰帶
     const r = 7.5 * s;
     g.fillStyle = INK; g.beginPath(); g.arc(j.head[0], j.head[1], r, 0, Math.PI * 2); g.fill();
     if (nj) ninjaHead(a, j, s, f, role, r);
+    if (snowy) drawHood(a, j, s, r);
+    if (icf) { g.save(); g.shadowBlur = 0; g.fillStyle = '#d9cbb0'; g.beginPath(); g.ellipse(j.neck[0], j.neck[1] + 0.5 * s, 5.4 * s, 2.6 * s, 0, 0, Math.PI * 2); g.fill(); g.restore(); }   // 斗篷的毛領
     // 頭上的白色座號（翻跟斗時也跟著轉）
     g.fillStyle = '#ffffff';
     g.font = '900 ' + (a.num >= 10 ? 8.4 : 9.5) * s + 'px ' + FONT;
@@ -3153,6 +3170,82 @@
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
     if (S.scene === 'ocean') diveGear(a, j, s, f, r);
     if (held) drawHeld(j, s, f, held);
+  }
+  // ---------- 雪地：厚雪衣、毛毛帽兜、手套、雪靴 ----------
+  const COATS = ['#e63946', '#2b7bd6', '#f4a261', '#2a9d8f', '#9b5de5', '#e9a23b', '#ff6fa5', '#3d9b4a'];
+  const coatOf = a => COATS[((a.num || 0) * 3) % COATS.length];
+  function drawParka(a, j, s) {
+    const c = coatOf(a), [nx, ny] = j.neck, [hx, hy] = j.hip;
+    g.save(); g.shadowBlur = 0;
+    g.fillStyle = c; g.beginPath();
+    g.moveTo(nx - 4.2 * s, ny); g.lineTo(nx + 4.2 * s, ny); g.lineTo(hx + 6 * s, hy + 4 * s); g.lineTo(hx - 6 * s, hy + 4 * s); g.closePath(); g.fill();
+    g.fillStyle = '#f3ead6'; g.fillRect(hx - 6.2 * s, hy + 2.4 * s, 12.4 * s, 2.4 * s);                    // 衣襬的毛邊
+    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 0.8 * s; g.beginPath(); g.moveTo((nx + hx) / 2, ny + 1 * s); g.lineTo(hx, hy + 2.4 * s); g.stroke();   // 拉鍊
+    g.fillStyle = '#5a3a22';
+    for (const [x, y] of [j.lF, j.rF]) { roundRect(x - 3.2 * s, y - 4.4 * s, 6.4 * s, 5 * s, 1.6 * s); g.fill(); }   // 雪靴
+    g.restore();
+  }
+  function drawParkaSleeves(a, j, s) {
+    const c = coatOf(a);
+    g.save(); g.shadowBlur = 0; g.strokeStyle = c; g.lineWidth = 4.6 * s; g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const [h, e] of [[j.lH, j.lE], [j.rH, j.rE]]) {
+      g.beginPath(); g.moveTo(j.neck[0], j.neck[1]); g.lineTo(e[0], e[1]); g.lineTo(h[0] + (e[0] - h[0]) * 0.25, h[1] + (e[1] - h[1]) * 0.25); g.stroke();
+      g.fillStyle = '#f3ead6'; g.beginPath(); g.arc(h[0], h[1], 2.6 * s, 0, Math.PI * 2); g.fill();          // 毛手套
+    }
+    g.restore();
+  }
+  function drawHood(a, j, s, r) {
+    const [hx, hy] = j.head;
+    g.save(); g.shadowBlur = 0;
+    g.strokeStyle = coatOf(a); g.lineWidth = 3.4 * s; g.beginPath(); g.arc(hx, hy, r + 2.6 * s, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = '#f3ead6'; g.lineWidth = 2.4 * s; g.setLineDash([1.6 * s, 1.1 * s]); g.beginPath(); g.arc(hx, hy, r + 0.9 * s, 0, Math.PI * 2); g.stroke();   // 毛毛的邊
+    g.setLineDash([]);
+    g.restore();
+  }
+
+  // ---------- 冰與火：黑斗篷、長劍、火把、龍蛋、冰原狼 ----------
+  const ICE_ROLES = ['sword', 'torch', 'egg', 'wolf', 'sword', 'torch', 'cloak', 'wolf', 'egg', 'sword'];
+  const ICE_HELD = { sword: { kind: 'longsword', ang: -1.15 }, torch: { kind: 'torch', ang: -1.45 }, egg: { kind: 'egg', ang: 0 } };
+  function drawCloak(a, j, s, f) {
+    const [nx, ny] = j.neck, [hx, hy] = j.hip, wave = Math.sin(T * 5 + (a.num || 0)) * 1.6 * s + (a.act && (a.act.type === 'run' || a.act.type === 'flee') ? 5 * s : 0);
+    g.save(); g.shadowBlur = 0;
+    g.fillStyle = '#2d2622'; g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 0.8 * s;
+    g.beginPath(); g.moveTo(nx + f * 3 * s, ny); g.lineTo(nx - f * 4 * s, ny - 0.5 * s);
+    g.quadraticCurveTo(hx - f * (8 * s + wave), (ny + hy) / 2, hx - f * (11 * s + wave), hy + 9 * s);
+    g.lineTo(hx + f * 1 * s, hy + 7 * s); g.closePath(); g.fill(); g.stroke();
+    g.restore();
+  }
+  function drawWolf(x, y, f, s, moving) {
+    const leg = moving ? Math.sin(T * 12) * 2.6 : 0, k = s * 1.15;
+    g.save(); g.shadowBlur = 0; g.translate(x, y); g.scale(f * k, k); g.lineCap = 'round';
+    g.strokeStyle = '#c9cfd8'; g.lineWidth = 2.4;
+    for (const [lx, d] of [[-7, 1], [-4, -1], [6, -1], [9, 1]]) { g.beginPath(); g.moveTo(lx, -8); g.lineTo(lx + leg * d, 0); g.stroke(); }
+    g.fillStyle = '#eef1f5'; g.strokeStyle = '#8a94a6'; g.lineWidth = 0.8;
+    g.beginPath(); g.moveTo(-10, -12); g.quadraticCurveTo(-17, -9 + Math.sin(T * 4) * 1.5, -20, -15); g.quadraticCurveTo(-16, -13, -10, -9); g.closePath(); g.fill(); g.stroke();   // 尾巴
+    g.beginPath(); g.ellipse(1, -11, 11.5, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();                   // 身體
+    g.beginPath(); g.ellipse(12, -16, 5, 4.2, -0.2, 0, Math.PI * 2); g.fill(); g.stroke();               // 頭
+    g.beginPath(); g.moveTo(15, -18); g.lineTo(21, -15); g.lineTo(15, -13); g.closePath(); g.fill(); g.stroke();   // 嘴
+    g.beginPath(); g.moveTo(9.5, -19); g.lineTo(10.5, -25); g.lineTo(13, -19.5); g.closePath(); g.fill(); g.stroke();   // 耳朵
+    g.fillStyle = '#d9372b'; g.beginPath(); g.arc(14.2, -17.2, 1, 0, Math.PI * 2); g.fill();          // 紅眼睛
+    g.fillStyle = '#1b1b22'; g.beginPath(); g.arc(20.6, -15, 0.9, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  // 被龍火燙到：頭上冒火、冒煙
+  function drawBurn(x, y, s, left) {
+    const k = Math.min(1, left / 0.8);
+    g.save(); g.shadowColor = 'rgba(255,140,30,0.9)'; g.shadowBlur = 8;
+    for (let n = 0; n < 3; n++) {
+      const fx = x + (n - 1) * 3.4 * s, h = (9 + Math.sin(T * 22 + n * 2) * 3) * s * k;
+      g.fillStyle = ['rgba(255,90,20,0.9)', 'rgba(255,200,60,0.95)', 'rgba(255,120,30,0.9)'][n];
+      g.beginPath(); g.moveTo(fx - 2.6 * s, y); g.quadraticCurveTo(fx - 1.6 * s, y - h * 0.6, fx, y - h); g.quadraticCurveTo(fx + 1.6 * s, y - h * 0.6, fx + 2.6 * s, y); g.closePath(); g.fill();
+    }
+    g.shadowBlur = 0;
+    for (let n = 0; n < 3; n++) {
+      const u = (T * 1.4 + n / 3) % 1;
+      g.fillStyle = 'rgba(160,160,170,' + (0.55 * (1 - u)).toFixed(2) + ')';
+      g.beginPath(); g.arc(x + Math.sin(u * 7 + n) * 4 * s, y - 12 * s - u * 22 * s, (2 + u * 4) * s, 0, Math.PI * 2); g.fill();
+    }
+    g.restore();
   }
   // 背後：飄動的圍巾、背在背上的武士刀、大腿上的苦無
   function ninjaBack(a, j, s, f, role, held) {
@@ -3241,6 +3334,29 @@
       g.strokeStyle = '#f6c344'; g.lineWidth = 1.2 * s; g.beginPath(); g.arc(hx, hy, 10 * s, an - 1, an + 1); g.stroke();
       g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 0.6 * s;
       for (let k = -2; k <= 2; k++) { const b = an + k * 0.45; g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx + Math.cos(b) * 10 * s, hy + Math.sin(b) * 10 * s); g.stroke(); }
+    } else if (w.kind === 'longsword') {
+      const nx = -dy * f, ny = dx * f;                                    // 垂直方向（護手）
+      g.strokeStyle = '#5a3a22'; g.lineWidth = 2.2 * s; g.beginPath(); g.moveTo(hx - dx * 5 * s, hy - dy * 5 * s); g.lineTo(hx + dx * 1.5 * s, hy + dy * 1.5 * s); g.stroke();
+      g.strokeStyle = '#b9a27a'; g.lineWidth = 1.8 * s; g.beginPath(); g.moveTo(hx + dx * 2 * s - nx * 4.5 * s, hy + dy * 2 * s - ny * 4.5 * s); g.lineTo(hx + dx * 2 * s + nx * 4.5 * s, hy + dy * 2 * s + ny * 4.5 * s); g.stroke();
+      g.strokeStyle = '#c9d1dc'; g.lineWidth = 2.4 * s; g.beginPath(); g.moveTo(hx + dx * 3 * s, hy + dy * 3 * s); g.lineTo(hx + dx * 30 * s, hy + dy * 30 * s); g.stroke();
+      g.strokeStyle = 'rgba(60,66,80,0.8)'; g.lineWidth = 0.6 * s; g.beginPath();                          // 劍身上的波紋
+      for (let t = 5; t < 28; t += 3) { g.moveTo(hx + dx * t * s - nx * 0.8 * s, hy + dy * t * s - ny * 0.8 * s); g.lineTo(hx + dx * (t + 1.5) * s + nx * 0.8 * s, hy + dy * (t + 1.5) * s + ny * 0.8 * s); }
+      g.stroke();
+    } else if (w.kind === 'torch') {
+      const tx = hx + dx * 13 * s, ty = hy + dy * 13 * s;
+      g.strokeStyle = '#7a4a24'; g.lineWidth = 2.2 * s; g.beginPath(); g.moveTo(hx - dx * 4 * s, hy - dy * 4 * s); g.lineTo(tx, ty); g.stroke();
+      g.shadowColor = 'rgba(255,150,40,0.95)'; g.shadowBlur = 12;
+      for (let n = 0; n < 2; n++) {
+        const h = (11 - n * 4 + Math.sin(T * 20 + n) * 2) * s, w2 = (4 - n * 1.5) * s;
+        g.fillStyle = n ? 'rgba(255,230,120,0.95)' : 'rgba(255,110,30,0.9)';
+        g.beginPath(); g.moveTo(tx - w2, ty); g.quadraticCurveTo(tx - w2, ty - h * 0.6, tx + Math.sin(T * 9) * 1.5 * s, ty - h); g.quadraticCurveTo(tx + w2, ty - h * 0.6, tx + w2, ty); g.closePath(); g.fill();
+      }
+    } else if (w.kind === 'egg') {
+      const ex = (j.rH[0] + j.lH[0]) / 2 + f * 2 * s, ey = Math.min(j.rH[1], j.lH[1]) - 3 * s;
+      g.shadowColor = 'rgba(255,120,40,' + (0.5 + Math.sin(T * 3) * 0.3).toFixed(2) + ')'; g.shadowBlur = 10;
+      g.fillStyle = '#6b1d1d'; g.beginPath(); g.ellipse(ex, ey, 4.2 * s, 5.6 * s, 0, 0, Math.PI * 2); g.fill();
+      g.shadowBlur = 0; g.fillStyle = '#d4a72c';
+      for (const [ox, oy] of [[-1.6, -2.4], [1.4, -0.6], [-1, 1.6], [1.8, 2.6], [0, -4]]) { g.beginPath(); g.arc(ex + ox * s, ey + oy * s, 0.8 * s, 0, Math.PI * 2); g.fill(); }
     } else if (w.kind === 'sticks') {
       g.strokeStyle = '#c69b6d'; g.lineWidth = 1.4 * s;
       for (const [x, y] of [j.rH, j.lH]) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + f * 8 * s, y - 3 * s); g.stroke(); }
@@ -3828,7 +3944,7 @@
     nextHunt();
     if (done.length) celebrate(done);
   }
-  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }) };
+  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }), pos: () => kids().map(k => ({ n: k.num, x: Math.round(k.x), y: Math.round(k.y), F: Math.round(FLOOR), vy: Math.round(k.vy), surf: k.surf, air: k.air, act: k.act.type })) };
 
   // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒有缺交的會放回來）
   // 骷髏大約每 15～30 秒走出骷髏區抓一個人；沒有缺交的人被抓進籠子，過一下會自己跑出來
