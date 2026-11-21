@@ -162,6 +162,8 @@
         @media (min-width: 768px) { #playground { display: block; } }
         #playground .pg-label { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; color: #3e3e50; font-weight: 900; font-size: 0.8rem; letter-spacing: 0.2em; pointer-events: none; }
         #playground:not(.battle-on) .pg-label { display: none; }
+        /* 操場旁白：現在誰在玩什麼（battle.js 會換文字） */
+        #playground .pg-label.narr { left: 150px; right: 26%; color: #d6d2e8; font-size: 0.92rem; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #battleToggle { position: absolute; left: 0; bottom: 6px; z-index: 6; background: #252530; color: #a8a4ba; border: 1px solid #3e3e50; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
         #battleToggle:focus-visible { outline: 3px solid #4cc9f0; outline-offset: 2px; }
         .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #e63946; color: white; padding: 10px 16px; border-radius: 10px; font-weight: bold; z-index: 200; display: none; max-width: calc(100% - 32px); box-sizing: border-box; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
@@ -213,7 +215,7 @@
             100% { opacity: 0; transform: scale(1.2) translateY(-4px); }
         }
 
-        /* ☠️ 欠交大魔王：全螢幕動畫 */
+        /* ☠️ 缺交大魔王：全螢幕動畫 */
         .btn-doom { background: #1a7f0e; color: #d9ffd0; border: 1px solid #39ff14; padding: 6px 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; box-shadow: 0 0 8px rgba(57,255,20,0.5); }
         #doomOverlay { position: fixed; inset: 0; z-index: 300; overflow: hidden; cursor: pointer; background: radial-gradient(ellipse at center, #0f2a0f 0%, #050a05 70%, #000 100%); animation: doom-in 0.5s ease-out; touch-action: manipulation; }
         @keyframes doom-in { from { opacity: 0; } to { opacity: 1; } }
@@ -311,7 +313,7 @@
         <div class="teacher-tools-row">
             <button class="btn-sync-cloud" onclick="loadBoard(true)">🔄 重新整理</button>
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
-            <button class="btn-doom" onclick="playDoom()">☠️ 欠交大魔王</button>
+            <button class="btn-doom" onclick="playDoom()">☠️ 缺交大魔王</button>
             <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
             <button class="btn-helpers teacher-only owner-only" onclick="openAccounts()">👥 小秘書</button>
             <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
@@ -335,7 +337,7 @@
         <div class="teacher-tools-row">
             <button class="btn-sync-cloud" onclick="loadBoard(true)">🔄 重新整理</button>
             <button class="btn-export-all" onclick="exportDebtReport()">📊 產出並複製總表 (展開閉嘴牆)</button>
-            <button class="btn-doom" onclick="playDoom()">☠️ 欠交大魔王</button>
+            <button class="btn-doom" onclick="playDoom()">☠️ 缺交大魔王</button>
             <button class="btn-counter teacher-only" onclick="openCounter()">🧾 補交櫃台</button>
             <button class="btn-helpers teacher-only owner-only" onclick="openAccounts()">👥 小秘書</button>
             <button class="btn-trash teacher-only" onclick="openTrash()">♻️ 復原</button>
@@ -372,7 +374,7 @@
 
     <div class="shut-up-wall" id="shutUpWall">
         <div class="wall-title">
-            <span>🥊 NICE家族 欠交/補考 閉嘴牆 (全班大對決)</span>
+            <span>🥊 NICE家族 缺交/補考 閉嘴牆 (全班大對決)</span>
             <button class="btn-close" onclick="hideWall()">× 關閉閉嘴牆</button>
         </div>
         <div class="wall-grid" id="wallGrid"></div>
@@ -734,7 +736,7 @@
             return getSubjectClass(card.name);
         }
 
-        // 這一格併進來幾份同名的舊欠交（再開同名作業時合併進來的）
+        // 這一格併進來幾份同名的舊缺交（再開同名作業時合併進來的）
         function olderOwed(card, kind, seat) {
             return (card.carried && card.carried[String(seat)]) || 0;
         }
@@ -743,8 +745,8 @@
                 (c.createdAt > card.createdAt || (c.createdAt === card.createdAt && c.id > card.id)));
         }
 
-        // ---------- ☠️ 欠交大魔王 ----------
-        // 逾期 = 前幾天開的卡、或併進新卡的舊欠交（今天剛開、正在收的不算）
+        // ---------- ☠️ 缺交大魔王 ----------
+        // 逾期 = 前幾天開的卡、或併進新卡的舊缺交（今天剛開、正在收的不算）
         function overdueCounts() {
             const today = new Date(); today.setHours(0, 0, 0, 0);
             const m = new Map();
@@ -753,7 +755,7 @@
                     const old = c.createdAt < today.getTime() || hasNewer(c, kind);
                     for (let s = 1; s <= board.studentCount; s++) {
                         if (!((c.statuses[s - 1] || 0) > 0)) continue;
-                        const n = (old ? 1 : 0) + olderOwed(c, kind, s);   // 舊卡本身 + 併進來的舊欠交
+                        const n = (old ? 1 : 0) + olderOwed(c, kind, s);   // 舊卡本身 + 併進來的舊缺交
                         if (n) m.set(s, (m.get(s) || 0) + n);
                     }
                 }
@@ -798,9 +800,9 @@
                 d.style.width = (10 + Math.random() * 14) + 'px';
                 ov.appendChild(d);
             }
-            ov.appendChild(el('div', 'doom-title', '☠️ 欠交大魔王出沒 ☠️'));
+            ov.appendChild(el('div', 'doom-title', '☠️ 缺交大魔王出沒 ☠️'));
             const total = list.reduce((a, [, n]) => a + n, 0);
-            ov.appendChild(el('div', 'doom-sub', list.length + ' 位同學還欠 ' + total + ' 份作業，快去補交！（點一下關閉）'));
+            ov.appendChild(el('div', 'doom-sub', list.length + ' 位同學缺交 ' + total + ' 份作業，快去補交！（點一下關閉）'));
 
             // 骷髏：到處亂跑、互相推擠、偶爾隱身再浮出來
             const skulls = list.map(([seat, n]) => {
@@ -809,7 +811,7 @@
                 const node = el('div', 'doom-skull');
                 if (n >= 3) { const c = el('div', 'crown', '👑'); c.style.fontSize = size * 0.45 + 'px'; node.appendChild(c); }
                 const face = el('div', 'face', '💀'); face.style.fontSize = size + 'px';
-                node.append(face, el('div', 'tag', pad(seat) + '號 欠' + n));
+                node.append(face, el('div', 'tag', pad(seat) + '號 缺' + n));
                 ov.appendChild(node);
                 const speed = 0.6 + Math.random() * 0.9 + n * 0.15;
                 const a = Math.random() * Math.PI * 2;
@@ -956,8 +958,8 @@
                 if (owed > 0) {
                     btn.classList.add('owes-old');
                     if (owed >= 2) btn.classList.add('owes-many');
-                    btn.appendChild(el('span', 'owe-badge', '欠' + owed));
-                    btn.title = (btn.title ? btn.title + '\n' : '') + '還欠 ' + owed + ' 份之前的「' + card.baseName + '」';
+                    btn.appendChild(el('span', 'owe-badge', '缺' + owed));
+                    btn.title = (btn.title ? btn.title + '\n' : '') + '缺交 ' + owed + ' 份之前的「' + card.baseName + '」';
                 }
                 if (pendingSeats.has(card.id + ':' + s)) btn.classList.add('pending');
                 if (loggedIn()) bindNodeEvents(btn, card.id, s);
@@ -1250,7 +1252,7 @@
             let msg;
             if (isTeacher()) {
                 msg = '確定要取下「' + card.name + '」嗎？';
-                if (owing) msg += '\n\n這張卡還有 ' + owing + ' 人沒交，取下後他們的欠交也會一起收起來（可以從 ♻️ 復原找回）';
+                if (owing) msg += '\n\n這張卡還有 ' + owing + ' 人沒交，取下後他們的缺交也會一起收起來（可以從 ♻️ 復原找回）';
                 else msg += '（之後可以從 ♻️ 復原找回來）';
             } else {
                 msg = '確定要取下你剛建立的「' + card.name + '」嗎？';
@@ -1317,17 +1319,17 @@
             }
         }
 
-        // 清空：只收起全班都完成的卡片，還有人欠交的保留（欠交要一直記著）
+        // 清空：只收起全班都完成的卡片，還有人缺交的保留（缺交要一直記著）
         async function triggerClear() {
             const kind = currentMode === 'exam' ? 'exam' : 'daily';
-            if (!confirm('確定清空？只會收起全班都完成的卡片，還有人欠交的會保留')) return;
+            if (!confirm('確定清空？只會收起全班都完成的卡片，還有人缺交的會保留')) return;
             try {
                 const r = await withPending(() => api('POST', '/api/cards/clear', { kind }));
                 hideWall();
                 await loadBoard(false);
                 const cleared = r.cleared || 0;
                 const kept = r.kept || 0;
-                toast('收起 ' + cleared + ' 張全班完成的卡片' + (kept ? '；' + kept + ' 張還有人欠交，保留在看板上' : ''), true);
+                toast('收起 ' + cleared + ' 張全班完成的卡片' + (kept ? '；' + kept + ' 張還有人缺交，保留在看板上' : ''), true);
             } catch (e) { toast(e.message); }
         }
 
@@ -1358,7 +1360,7 @@
                 const n = owedItems(s).length;
                 const b = el('button', 'counter-seat' + (n ? '' : ' zero') + (s === counterSeat ? ' selected' : ''));
                 b.appendChild(el('span', '', pad(s)));
-                b.appendChild(el('small', '', n ? '欠 ' + n + ' 項' : '✓'));
+                b.appendChild(el('small', '', n ? '缺 ' + n + ' 項' : '✓'));
                 b.onclick = () => { counterSeat = s; renderCounter(); };
                 seats.appendChild(b);
             }
@@ -1374,7 +1376,7 @@
                 list.appendChild(el('div', 'counter-clean', '🎉 ' + pad(seat) + ' 號全部交清'));
                 return;
             }
-            list.appendChild(el('div', 'counter-title', pad(seat) + ' 號 還欠 ' + items.length + ' 項'));
+            list.appendChild(el('div', 'counter-title', pad(seat) + ' 號 缺交 ' + items.length + ' 項'));
             for (const it of items) {
                 const row = el('div', 'counter-item');
                 row.appendChild(el('span', 'counter-dot s' + it.status));
@@ -1621,7 +1623,7 @@
         function hideWall() { document.getElementById('shutUpWall').style.display = 'none'; }
 
         async function exportDebtReport() {
-            let str = '📋 NICE家族 欠交/補考 總追債報告\n(產出時間: ' + new Date().toLocaleTimeString() + ')\n-------------------------\n';
+            let str = '📋 NICE家族 缺交/補考 總追債報告\n(產出時間: ' + new Date().toLocaleTimeString() + ')\n-------------------------\n';
             let clean = 0;
             for (let s = 1; s <= board.studentCount; s++) {
                 const d = debtsOf(s);

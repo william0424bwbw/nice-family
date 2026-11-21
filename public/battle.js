@@ -19,7 +19,9 @@
   let surfaces = new Map();   // id -> {id, x1, x2, top, floor?}
   let pit = null, cage = null, pile = null, towerX = 0;
   let agents = [], parts = [], balls = [];
-  const S = { overdue: 0, defeated: false, caged: [], tower: 0, hunting: false, huntQueue: [] };
+  const S = { overdue: 0, defeated: false, caged: [], tower: 0, hunts: [], huntQueue: [], raid: null, scene: 'playground', patrol: null, snowmen: [] };
+  // 好幾隻骷髏可以同時抓人（S.hunts）；S.hunting = 有沒有人正在被抓
+  Object.defineProperty(S, 'hunting', { get() { return S.hunts.length ? S.hunts[0] : null; }, set(v) { if (!v) S.hunts = []; } });
   // 看板資料（index.html 每次重畫看板時呼叫 NiceBattle.sync 更新）
   let DATA = null;          // { count, overdue: Map(座號 → 逾期份數) }
   let prevCards = null;     // 上一次每張卡片的狀態，用來判斷「全班交齊」
@@ -101,9 +103,30 @@
     if (a.rope && type !== 'hook' && a.rope.retract == null) a.rope = null;   // 爬到一半被打斷，繩子收掉
     if (a.kind === 'bear' && a.act && a.act.type === 'skill' && a.act.k === 'stairs' && S.stairs && !a.act.ending) endStairs(a);
     if (a.kind === 'kid' && a.act && a.act.type === 'dance') a.rot = 0;
+    // 離開下課活動（被骷髏抓、逃跑、活動結束）：手上的東西、頭上的字都收掉
+    if (a.act && a.act.type === 'play' && type !== 'play') {
+      a.group = null; a.item = null; a.tag = null; a.hop = 0; a.carry = null; a.rot = 0;
+      if (a.surf === 'floor' && !a.air) a.y = FLOOR;
+    }
+    if (a.hidden && type !== 'tele') a.hidden = false;
     a.act = Object.assign({ type, t: 0 }, o);
   }
-  function say(a, text, sec = 1.6) { a.say = { text, until: T + sec }; }
+  // 說話分三級：0 = 隨口一句（最常被省略）、1 = 遊戲和聊天的台詞、2 = 重要的事（被抓、補交、大熊老師、骷髏）
+  // 畫面上泡泡太多、旁邊已經有人在講話，就先不講；20 幾個人才不會吵成一團
+  let chatQuiet = 0;
+  function say(a, text, sec = 1.6, lv = 0) {
+    if (a.kind !== 'kid') lv = 2;
+    if (lv < 2) {
+      const live = agents.filter(x => x !== a && x.say && x.say.until > T && !(a.group && x.group === a.group));
+      if (live.length >= (lv ? 3 : 1)) return false;
+      if (!lv && T < chatQuiet) return false;
+      const gap = lv ? 150 : 240;
+      if (live.some(x => Math.abs(x.x - a.x) < gap && Math.abs(x.y - a.y) < 120)) return false;
+      if (!lv) chatQuiet = T + 6;
+    }
+    a.say = { text, until: T + sec, lv };
+    return true;
+  }
 
   // ---------- 姿勢 ----------
   const D = { lean: 0, tilt: 0, ra1: 0.15, ra2: 0.1, la1: -0.15, la2: -0.1, rl1: 0.06, rl2: 0, ll1: -0.06, ll2: 0, hipH: 22 };
@@ -178,7 +201,8 @@
     if (!target) { a.goal = null; setAct(a, 'idle', { dur: 0.5 }); return; }
     const cur = surf(a.surf);
     const tx = clamp(goal.x, target.x1 + 8, target.x2 - 8);
-    if (cur.id === target.id) { setAct(a, a.kind === 'skull' || goal.run ? 'run' : 'walk', { tx, arrive: true }); return; }
+    const fast = (a.kind === 'skull' && !goal.walk) || goal.run;
+    if (cur.id === target.id) { setAct(a, fast ? 'run' : 'walk', { tx, arrive: true }); return; }
     const higher = cur.top - target.top;           // > 0 代表目標比較高
     let nearX = clamp(a.x, target.x1 + 10, target.x2 - 10);
     if (a.kind === 'kid' && target.floor) nearX = Math.min(nearX, kidMaxX());   // 小孩不敢跳進骷髏區
@@ -202,7 +226,7 @@
     // 在地上：走到平台側邊，爬上去（小孩不從骷髏區那一側爬）
     let side = Math.abs(a.x - target.x1) < Math.abs(a.x - target.x2) ? target.x1 - 6 : target.x2 + 6;
     if (a.kind === 'kid' && side > kidMaxX()) side = target.x1 - 6;
-    if (Math.abs(side - a.x) > 4) { setAct(a, a.kind === 'skull' || goal.run ? 'run' : 'walk', { tx: side, step: true }); return; }
+    if (Math.abs(side - a.x) > 4) { setAct(a, fast ? 'run' : 'walk', { tx: side, step: true }); return; }
     a.f = side < target.x1 ? 1 : -1;
     if (a.kind === 'kid') { startKidClimb(a, target, side); return; }
     setAct(a, 'climb', { target: target.id });   // 骷髏貼牆爬（比較可怕）；熊用爪子爬
@@ -237,7 +261,7 @@
     setAct(a, 'mantle', { dur: 0.35 });
   }
   // 在地上、沒有在做特別的事，就可以被叫過來幫忙（原本要去哪裡就先不去了）
-  const BUSY_ACTS = ['push', 'stairRide', 'greet', 'taunt', 'grabbed', 'sink', 'thrown', 'puppet', 'boost', 'bearThrow', 'hook', 'walljump', 'mantle', 'climb', 'freeze', 'skill', 'jumpTo', 'flipTo', 'fall', 'flipHop'];
+  const BUSY_ACTS = ['play', 'tele', 'push', 'stairRide', 'greet', 'taunt', 'grabbed', 'sink', 'thrown', 'puppet', 'boost', 'bearThrow', 'hook', 'walljump', 'mantle', 'climb', 'freeze', 'skill', 'jumpTo', 'flipTo', 'fall', 'flipHop'];
   const freeForHelp = k => k.surf === 'floor' && !k.air && !k.cell && !k.fear && !k.forceClimb && !BUSY_ACTS.includes(k.act.type)
     && !(k.goal && ['pull', 'putBack', 'rescue', 'build', 'place', 'kick'].includes(k.goal.then));
   function tryBoost(a, s, edgeIn, side, leftSide) {
@@ -332,28 +356,46 @@
     if (!cur.floor && Math.random() < 0.35) { travel(a, 'floor', rand(60, kidMaxX())); return; }
     const r = Math.random();
     const plats = [...surfaces.values()].filter(s => !s.floor && (s.id !== 'tower' || S.tower >= 5));   // 蓋高的積木塔也可以爬
-    if (r < 0.28 && plats.length) {
+    if (S.scene === 'ninja' && r < 0.4) {
+      const up = plats.length && Math.random() < 0.5 ? pick(plats) : null;
+      const dest = up || surf('floor');
+      setAct(a, 'tele', { sid: dest.id, tx: up ? rand(up.x1 + 10, up.x2 - 10) : roomyX(a, 30, kidMaxX()) });
+      return;
+    }
+    if (r < 0.22 && plats.length) {
       const s = pick(plats);
       travel(a, s.id, rand(s.x1 + 10, s.x2 - 10));
       return;
     }
-    if (r < 0.38 && cur.floor && S.tower < 7) { travel(a, 'floor', pile.x + 20, 'build'); return; }
-    if (r < 0.42 && cur.floor && S.tower >= 7) { travel(a, 'floor', towerX - 22, 'kick'); return; }
-    if (r < 0.50 && !cur.floor) {
+    // 疊積木只是偶爾的事，大部分時間在玩下課活動（見 startActivity）
+    if (r < 0.25 && cur.floor && S.tower < 7) { travel(a, 'floor', pile.x + 20, 'build'); return; }
+    if (r < 0.27 && cur.floor && S.tower >= 7) { travel(a, 'floor', towerX - 22, 'kick'); return; }
+    if (r < 0.35 && !cur.floor) {
       setAct(a, 'sit', { dur: rand(3, 6) });
       const rightOk = cur.x2 < cage.x1 - 40;     // 右邊下面是骷髏區就坐左邊
       a.x = rightOk && Math.random() < 0.5 ? cur.x2 - 2 : cur.x1 + 2;
       a.f = a.x < (cur.x1 + cur.x2) / 2 ? -1 : 1; return;
     }
-    if (r < 0.58) { setAct(a, 'flipHop'); a.vx = rand(-40, 40); a.vy = -520; a.air = true; return; }
-    if (r < 0.65) { startDance(a); return; }
-    if (r < 0.70) { setAct(a, 'wave', { dur: 1.4 }); return; }
-    if (r < 0.74 && cur.floor) { setAct(a, 'sleep', { dur: rand(3, 5) }); return; }
-    if (r < 0.79 && cur.floor && tryPush(a)) return;
+    if (r < 0.40) { setAct(a, 'flipHop'); a.vx = rand(-40, 40); a.vy = -520; a.air = true; return; }
+    if (r < 0.45) { startDance(a); return; }
+    if (r < 0.48) { setAct(a, 'wave', { dur: 1.4 }); return; }
+    if (r < 0.51 && cur.floor) { setAct(a, 'sleep', { dur: rand(3, 5) }); return; }
+    if (r < 0.55 && cur.floor && tryPush(a)) return;
+    if (r < 0.70) { setAct(a, 'idle', { dur: rand(2, 4) }); return; }     // 站著發呆、看別人玩
     const hi = cur.floor ? kidMaxX() : cur.x2 - 6;
-    const running = Math.random() < 0.25;
-    if (!running && Math.random() < 0.3) a.phone = true;    // 邊走邊滑手機
-    setAct(a, running ? 'run' : 'walk', { tx: rand(cur.x1 + 6, hi) });
+    const running = Math.random() < 0.1;
+    if (!running && Math.random() < 0.25) a.phone = true;    // 邊走邊滑手機
+    setAct(a, running ? 'run' : 'walk', { tx: roomyX(a, cur.x1 + 6, hi) });
+  }
+  // 找一個人比較少的地方走過去，不要大家擠在一起撞來撞去
+  function roomyX(a, lo, hi) {
+    let best = rand(lo, hi), bs = Infinity;
+    for (let i = 0; i < 6; i++) {
+      const x = rand(lo, hi);
+      const c = agents.filter(o => o !== a && o.surf === a.surf && Math.abs(o.x - x) < 45).length + groups.filter(G => Math.abs(G.x - x) < 130).length * 3;
+      if (c < bs) { bs = c; best = x; }
+    }
+    return best;
   }
   function chooseBear(a) {
     const r = Math.random();
@@ -361,7 +403,7 @@
     if (r < 0.4) { startSkill(a, pick(['spike', 'stick', 'fire', 'hike', 'eat', 'shiver'])); return; }
     if (r < 0.6) { const plats = [...surfaces.values()].filter(s => !s.floor && s.x2 - s.x1 > 120); if (plats.length) { const s = pick(plats); travel(a, s.id, rand(s.x1 + 20, s.x2 - 20)); return; } }
     const cur = surf(a.surf);
-    setAct(a, 'walk', { tx: rand(cur.x1 + 10, cur.floor ? kidMaxX() : cur.x2 - 10) });
+    setAct(a, 'walk', { tx: roomyX(a, cur.x1 + 10, cur.floor ? kidMaxX() : cur.x2 - 10) });
   }
 
   function onArrive(a) {
@@ -427,7 +469,7 @@
           if (a.phone) { a.phone = false; if (Math.random() < 0.5) say(a, '收起來～', 1); }
           if (act.arrive) onArrive(a);
           else if (a.goal) planStep(a);
-          else setAct(a, 'idle', { dur: rand(0.3, 1.2) });
+          else setAct(a, 'idle', { dur: a.kind === 'kid' ? rand(1, 3) : rand(0.3, 1.2) });
         } else { a.x += Math.sign(d) * Math.min(Math.abs(d), sp * dt); a.ph += dt * (act.type === 'walk' ? 2 : 8); }
         a.p = a.carry ? poseCarry(a.ph)
           : act.type === 'walk' ? (a.phone ? posePhone(a.ph) : poseWalk(a.ph, a.kind === 'bear' ? 0.4 : 0.55))
@@ -663,7 +705,7 @@
       }
       case 'taunt': {
         // 裝勇敢：走到骷髏區前面挑釁，骷髏一靠近就嚇呆
-        const h = S.hunting && S.hunting.hunter;
+        const hh = S.hunts.find(x => x.v === a), h = hh && hh.hunter;
         if (act.phase === 0) {
           const d = act.tx - a.x;
           if (Math.abs(d) > 4) { a.f = Math.sign(d); a.x += Math.sign(d) * Math.min(Math.abs(d), 55 * BASE / 1.5 * dt); a.ph += dt * 3; a.p = poseWalk(a.ph, 0.7, -0.15); }
@@ -673,9 +715,39 @@
           const k = act.t - act.t0;
           const lines = ['來啊！我才不怕你！', '略略略～', '你抓不到我啦！'];
           const i = Math.floor(k / 1.1);
-          if (i < lines.length && i !== act.line) { act.line = i; say(a, lines[i], 1.1); }
+          if (i < lines.length && i !== act.line) { act.line = i; say(a, lines[i], 1.1, 2); }
         }
-        if (h && Math.abs(h.x - a.x) < 110 && h.surf === a.surf) { say(a, '…媽、媽呀！', 1.4); setAct(a, 'freeze'); }
+        if (h && Math.abs(h.x - a.x) < 110 && h.surf === a.surf) { say(a, '…媽、媽呀！', 1.4, 2); setAct(a, 'freeze'); }
+        break;
+      }
+      case 'play': {
+        // 下課活動：走到活動指定的位置，到了就擺活動給的姿勢（活動本身在 stepGroups 裡決定）
+        const G = act.g;
+        if (!G || G.over) { setAct(a, 'idle', { dur: rand(0.8, 2) }); break; }
+        if (act.tx != null && Math.abs(act.tx - a.x) >= 3) {
+          const d = act.tx - a.x, sp = (act.sp || 45) * BASE / 1.5;
+          a.f = Math.sign(d); a.x += Math.sign(d) * Math.min(Math.abs(d), sp * dt);
+          a.ph += dt * (sp > 80 ? 9 : 4);
+          a.p = sp > 80 ? poseRun(a.ph) : poseWalk(a.ph);
+          if (act.yf) a.y += (act.yf(a.x) - a.y) * Math.min(1, dt * 14);
+        } else {
+          if (act.tx != null) a.x = act.tx;
+          a.p = typeof act.pose === 'function' ? act.pose(T) : (act.pose || P({}));
+          if (act.face) a.f = act.face;
+        }
+        break;
+      }
+      case 'tele': {
+        // 忍者瞬間移動：結印 → 一陣煙消失 → 在目的地一陣煙出現
+        if (act.t < 0.3) a.p = P({ ra1: 1.3, ra2: 3.3, la1: 1.2, la2: 3.3 });
+        else if (!act.gone) { act.gone = true; a.hidden = true; smoke(a.x, a.y); }
+        if (act.t > 0.65 && !act.back) {
+          act.back = true;
+          const s2 = surf(act.sid);
+          a.surf = s2.id; a.x = clamp(act.tx, s2.x1 + 6, s2.floor ? kidMaxX() : s2.x2 - 6); a.y = s2.top;
+          a.hidden = false; a.p = P({ lean: 0.3, ra1: -0.8, la1: 0.8, hipH: 18 }); smoke(a.x, a.y);
+        }
+        if (act.t > 0.95) setAct(a, 'idle', { dur: rand(1, 2.5) });
         break;
       }
       case 'punch': a.p = P({ lean: 0.25, ra1: 1.57, ra2: 1.57, la1: 0.9, la2: 2.3, rl1: 0.5, ll1: -0.4, hipH: 20 }); if (act.t > act.dur) setAct(a, 'idle', { dur: 0.5 }); break;
@@ -701,7 +773,7 @@
           const msg = a.sinkMsg || ('😱 ' + tagOf(a.num) + '掉進綠池，跑到籠子裡了！');
           intoCage(a);
           sparkle((cage.x1 + cage.x2) / 2, FLOOR - 60);
-          banner(msg);
+          if (!a.quietSink) banner(msg);
         }
         break;
       }
@@ -937,6 +1009,980 @@
     b.vx = dx / d * 900; b.vy = dy / d * 900; b.target = s;
   }
 
+  // ---------- 下課活動 ----------
+  // 幾個人湊在一起玩一個遊戲（剪刀石頭布、聊天、鬼抓人…）；操場下方的旁白說明誰在玩什麼。
+  // 聊天的台詞在 TALKS，每個遊戲在 ACTS；想加新的直接往裡面加。
+  let groups = [];
+  const rint = (a, b) => Math.floor(rand(a, b + 1));
+  const numOf = m => String(m.num).padStart(2, '0');
+  const tagsOf = ms => ms.map(numOf).join('、') + ' 號';
+  const pgLabel = ground.querySelector('.pg-label');
+  let narrTimer = 0, narrAt = -99, narrNext = 0;
+  const narrQueue = [];
+  // 旁白：一次一行，至少停 4 秒才換；太密的排隊（重要的事直接插隊）
+  function narrate(text, important) {
+    if (!pgLabel) return;
+    if (!important && T - narrAt < 4) {
+      // 排太久（超過 6 秒）的就不講了，免得跟畫面對不上
+      if (narrQueue.length < 3 && !narrQueue.some(q => q.text === text)) narrQueue.push({ text, at: T });
+      clearTimeout(narrNext);
+      narrNext = setTimeout(() => {
+        while (narrQueue.length && T - narrQueue[0].at > 6) narrQueue.shift();
+        if (narrQueue.length) narrate(narrQueue.shift().text);
+      }, (4 - (T - narrAt)) * 1000 + 100);
+      return;
+    }
+    narrAt = T;
+    pgLabel.textContent = text; pgLabel.classList.add('narr');
+    clearTimeout(narrTimer);
+    narrTimer = setTimeout(() => { pgLabel.textContent = sceneLabel(); pgLabel.classList.remove('narr'); }, 14000);
+  }
+  const AMBIENT = ['☀️ 下課了！大家衝到操場來', '🔔 再過幾分鐘就要上課囉', '🐻 大熊老師在操場巡邏中', '🍱 快到午餐時間，大家肚子都餓了',
+    '🌬️ 今天有點風，好舒服', '📚 有人在偷偷背等一下要考的生字', '🧃 福利社前面排了好長一排', '🎒 放學前記得把聯絡簿拿給爸媽簽名'];
+
+  // 聊天話題資料庫：[說話的人（0、1、2）, 台詞]；三個人聊時 2 號角色才會出現，兩個人聊時由 0 號代講
+  const TALKS = [
+    { name: '營養午餐', lines: [[0, '今天營養午餐吃什麼？'], [1, '聽說有炸雞腿！'], [0, '真的假的！我要第一個盛飯！'], [1, '你上次也這樣說～']] },
+    { name: '福利社', item: '🧃', lines: [[0, '下課要不要去福利社？'], [1, '我要買養樂多！'], [2, '我只有十塊…'], [0, '那我們一人一半～']] },
+    { name: '閃卡', item: '🃏', lines: [[0, '你看！我抽到閃卡了！'], [1, '哇！借我看一下～'], [0, '只能看，不能摸喔！'], [1, '小氣鬼～']] },
+    { name: '數學習作', lines: [[0, '數學習作寫完了沒？'], [1, '還差兩頁…'], [0, '快點！不然骷髏要來抓你了！'], [1, '哇！我現在就去寫！']] },
+    { name: '聯絡簿', lines: [[0, '聯絡簿給爸媽簽名了嗎？'], [1, '啊！我忘了…'], [0, '趕快補簽，不然大熊老師會發現！']] },
+    { name: '躲避球', lines: [[0, '等一下打躲避球！'], [1, '我要當外場！'], [2, '上次你被我 K 到～'], [1, '那是我讓你的啦！']] },
+    { name: '週末', lines: [[0, '週末你去哪裡玩？'], [1, '去阿嬤家，有吃芒果冰！'], [0, '好好喔～我在家寫作業…']] },
+    { name: '寵物', lines: [[0, '我家的狗會握手喔！'], [1, '我家的貓只會睡覺'], [0, '那也很可愛啊～']] },
+    { name: '生日', lines: [[0, '下禮拜是我生日！'], [1, '要請全班吃蛋糕嗎？'], [0, '嘿嘿，看你們表現～']] },
+    { name: '國語考試', lines: [[0, '明天要考國語…'], [1, '我生字還沒背！'], [0, '考你：「蝴蝶」是什麼部首？'], [1, '虫字旁！']] },
+    { name: '打掃', lines: [[0, '今天輪到誰掃廁所？'], [1, '……是我。'], [0, '加油！我幫你拿掃把～']] },
+    { name: '午休', lines: [[0, '午休我都睡不著'], [1, '我也是，偷偷看窗外'], [0, '噓～老師在看！']] },
+    { name: '長大以後', lines: [[0, '你長大要做什麼？'], [1, '我要當 YouTuber！'], [2, '我要當老師，像大熊老師一樣！'], [0, '那你要先長很高～']] },
+    { name: '恐龍', lines: [[0, '暴龍跟三角龍誰比較強？'], [1, '暴龍啊！'], [0, '三角龍有角耶！'], [1, '那…打平！']] },
+    { name: '天氣', lines: [[0, '外面好熱喔～'], [1, '等一下去飲水機喝水'], [0, '順便洗把臉！']] },
+    { name: '新鞋子', lines: [[0, '你的鞋子會發光耶！'], [1, '我媽媽買的！'], [0, '好帥喔！']] },
+    { name: '祕密', lines: [[0, '跟你說一個祕密…'], [1, '什麼什麼？'], [0, '……我忘了。'], [1, '欸～！']] },
+    { name: '冷笑話', lines: [[0, '什麼動物最會算數？'], [1, '不知道…'], [0, '數「鼠」啊！'], [1, '好冷喔～']] },
+    { name: '謎語', lines: [[0, '什麼東西越洗越髒？'], [1, '衣服？'], [0, '是水啦！'], [1, '喔～～']] },
+    { name: '掉牙齒', lines: [[0, '我門牙掉了！'], [1, '哇！說話會漏風嗎？'], [0, '不會～哩看～']] },
+    { name: '借東西', item: '✏️', lines: [[0, '可以借我橡皮擦嗎？'], [1, '可以，要還我喔'], [0, '謝謝！明天還你～']] },
+    { name: '值日生', lines: [[0, '今天誰是值日生？'], [1, '是我！要擦黑板'], [0, '我幫你一起擦！']] },
+    { name: '校外教學', lines: [[0, '聽說要校外教學！'], [1, '去動物園嗎？'], [0, '我要看熊！像大熊老師那種～']] },
+    { name: '點心', item: '🍪', lines: [[0, '我媽媽幫我帶了餅乾'], [1, '可以分我一片嗎？'], [0, '好啊，一人一片！'], [1, '你最好了～']] },
+    { name: '下課要玩什麼', lines: [[0, '下一節下課玩什麼？'], [1, '鬼抓人！'], [2, '一二三木頭人！'], [0, '那猜拳決定！']] },
+    { name: '才藝班', lines: [[0, '你放學要去補習嗎？'], [1, '要去學游泳！'], [0, '我要去學畫畫～']] },
+    { name: '晚餐', lines: [[0, '你晚餐想吃什麼？'], [1, '咖哩飯！'], [0, '我想吃牛肉麵！'], [1, '講得我好餓～']] },
+    { name: '準時交作業', lines: [[0, '你看籠子裡那幾個…'], [1, '他們作業還沒交吧'], [0, '我們要準時交，才不會被抓！']] },
+  ];
+  let recentTalks = [];
+
+  // 動作
+  const poseTalk = t => P({ ra1: 0.8 + 0.35 * Math.sin(t * 7), ra2: 1.6 + 0.3 * Math.sin(t * 5), la1: -0.2 });
+  const poseListen = () => P({ tilt: 0.12 });
+  const poseLaugh = t => P({ lean: -0.1, ra1: 0.6, ra2: 2.2 + 0.25 * Math.sin(t * 22), la1: 0.5, la2: 2.1 + 0.25 * Math.sin(t * 22), hipH: 22 + Math.abs(Math.sin(t * 11)) });
+  const posePump = t => P({ ra1: 1.0 + 0.55 * Math.abs(Math.sin(t * 6)), ra2: 1.9 + 0.55 * Math.abs(Math.sin(t * 6)), la1: -0.15 });
+  const poseShow = () => P({ ra1: 1.45, ra2: 1.5, la1: -0.15 });
+  const poseSlump = () => P({ lean: 0.3, tilt: 0.35, ra1: 0.05, ra2: 0, la1: -0.05, la2: 0, hipH: 21 });
+  const poseCover = () => P({ tilt: 0.3, ra1: 2.3, ra2: 4.4, la1: 2.1, la2: 4.3 });                       // 摀眼睛數數
+  const posePoint = () => P({ ra1: 1.55, ra2: 1.55, la1: -0.1 });                                          // 轉身指人
+  const poseKick = () => P({ lean: -0.1, tilt: 0.25, ra1: -0.6, ra2: -0.3, la1: 0.6, la2: 0.9, rl1: 1.2, rl2: 0.3, ll1: -0.05, hipH: 22 });
+  const poseReady = () => P({ tilt: -0.25, ra1: -0.5, ra2: -0.2, la1: 0.5, la2: 0.8, rl1: 0.15, ll1: -0.15 });
+  const poseHold = ph => P({ ra1: 1.3 + 0.6 * Math.sin(ph), ra2: 1.3 + 0.6 * Math.sin(ph), la1: -0.2 });  // 甩繩子
+  const poseCatch = () => P({ ra1: 1.6, ra2: 2.0, la1: 1.4, la2: 1.9 });
+  const poseThrow = () => P({ lean: 0.15, ra1: 1.9, ra2: 2.3, la1: -0.3 });
+  const poseOw = () => P({ lean: -0.2, tilt: -0.45, ra1: 2.4, ra2: 4.2, la1: -0.2 });                     // 被彈額頭，手摸額頭
+  const poseMeasure = () => P({ ra1: 3.3, ra2: 2.5, la1: -0.15 });                                        // 手平放在頭頂比身高
+  const posePant = () => P({ lean: 0.4, ra1: 0.6, ra2: 0.9, la1: 0.6, la2: 0.9, hipH: 19 });              // 手撐膝蓋喘氣
+  const STATUES = [
+    () => P({ rl1: 1.1, rl2: 0.3, ra1: 2.4, ra2: 2.6, la1: -2.4, la2: -2.6 }),                            // 單腳站
+    () => P({ ra1: 1.57, ra2: 1.57, la1: -1.57, la2: -1.57, lean: 0.2 }),                                 // 飛機
+    () => P({ lean: 0.4, ra1: 1.0, ra2: 0.4, la1: -0.9, la2: -0.4, rl1: 0.7, ll1: -0.6, hipH: 18 }),      // 跨大步
+    () => P({ tilt: 0.4, ra1: 2.8, ra2: 3.0, la1: 0.8, la2: 2.5 }),                                       // 抓頭
+  ];
+  const poseWobble = t => { const p = STATUES[0](); p.lean = 0.25 * Math.sin(t * 14); p.rl1 = 0.8 + 0.4 * Math.sin(t * 9); return p; };
+  const RPS = ['✊', '✌️', '🖐️'], RPS_NAME = ['石頭', '剪刀', '布'];
+  const RPS_WIN = ['耶！我贏了！', '哈哈！你輸了！', '我是猜拳王！'], RPS_LOSE = ['再來一次！我不服！', '可惡～', '你一定偷看！'];
+
+  // 小工具
+  const go = (m, x, sp) => { m.act.tx = clamp(x, 24, kidMaxX() - 6); m.act.sp = sp || 60; };
+  const halt = m => { m.act.tx = null; };
+  const ready = G => G.members.every(m => m.act.tx == null || Math.abs(m.act.tx - m.x) < 3);
+  const phase = (G, p) => { G.phase = p; G.t0 = G.t; G.f = {}; };
+  const pose = (m, p, face) => { m.act.pose = p; if (face) m.act.face = face; };
+  const hand = m => m.j ? m.j.rH : [m.x, m.y - 45];
+  // 同一組一次只有一個人講話（新的一句出來，上一句就收掉）
+  function line(G, m, text, sec = 2) {
+    for (const o of G.members) if (o !== m && o.say && o.say.lv === 1) o.say = null;
+    return say(m, text, sec, 1);
+  }
+  // 照順序講台詞：script = [[人, 台詞, 講的時候做的事?], ...]，每句 2.3 秒
+  function runScript(G, k) {
+    if (k < G.next) return false;
+    if (G.i >= G.script.length) return true;
+    const [m, text, fn] = G.script[G.i++];
+    line(G, m, text, 2.2);
+    for (const o of G.members) pose(o, o === m ? poseTalk : poseListen());
+    if (fn) fn();
+    G.next = k + 2.4;
+    return false;
+  }
+
+  const ACTS = {
+    chat: { name: '聊天', n: [2, 3], w: 6,
+      setup(G) {
+        const pool = TALKS.filter(t => !recentTalks.includes(t.name));
+        G.topic = pick(pool.length ? pool : TALKS);
+        recentTalks = recentTalks.concat(G.topic.name).slice(-8);
+        const n = G.members.length;
+        G.members.forEach((m, i) => go(m, G.x + (i - (n - 1) / 2) * 38));
+        phase(G, 'gather');
+      },
+      step(G) {
+        const ms = G.members, k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          ms.forEach((m, i) => pose(m, poseListen(), i < (ms.length - 1) / 2 ? 1 : -1));
+          if (G.topic.item) ms.forEach(m => { m.item = G.topic.item; });
+          G.script = G.topic.lines.filter(([who]) => who < 2 || ms.length > 2).map(([who, text]) => [ms[who % ms.length], text]);
+          G.i = 0; G.next = 0.3;
+          narrate('💬 ' + tagsOf(ms) + '在聊「' + G.topic.name + '」');
+          phase(G, 'talk'); return;
+        }
+        if (G.phase === 'talk') { if (runScript(G, k)) { ms.forEach(m => pose(m, poseLaugh)); phase(G, 'bye'); } return; }
+        if (k > 1.4) endGroup(G);
+      } },
+
+    rps: { name: '剪刀石頭布', n: [2, 2], w: 4,
+      setup(G) { const [A, B] = G.members; go(A, G.x - 20); go(B, G.x + 20); G.ties = 0; G.rounds = 0; phase(G, 'gather'); },
+      step(G) {
+        const [A, B] = G.members, k = G.t - G.t0;
+        const chant = () => { phase(G, 'chant'); line(G, G.caller, '剪刀、石頭、布！', 1.6); pose(A, posePump); pose(B, posePump); };
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          pose(A, P({}), 1); pose(B, P({}), -1);
+          G.caller = pick([A, B]);
+          line(G, G.caller, pick(['來猜拳！', '剪刀石頭布決定！', '輸的人要被彈額頭喔！']), 1.6);
+          narrate('✊ ' + tagsOf([A, B]) + '在玩剪刀石頭布');
+          phase(G, 'wait'); return;
+        }
+        if (G.phase === 'wait') { if (k > 1.5) chant(); return; }
+        if (G.phase === 'chant') {
+          if (k > 1.5) { G.ca = rint(0, 2); G.cb = rint(0, 2); A.item = RPS[G.ca]; B.item = RPS[G.cb]; pose(A, poseShow()); pose(B, poseShow()); phase(G, 'show'); }
+          return;
+        }
+        if (G.phase === 'show') {
+          if (k > 0.9 && !G.f.judged) {
+            G.f.judged = true;
+            if (G.ca === G.cb) { G.win = null; line(G, pick([A, B]), pick(['平手！再來！', '一樣耶！再一次！', '心有靈犀～再來！']), 1.4); }
+            else {
+              const aw = (G.cb - G.ca + 3) % 3 === 1;
+              G.win = aw ? A : B; G.lose = aw ? B : A;
+              const wc = aw ? G.ca : G.cb, lc = aw ? G.cb : G.ca;
+              line(G, G.win, pick(RPS_WIN), 1.5); pose(G.win, poseCheer); pose(G.lose, poseSlump());
+              narrate('✊ ' + numOf(G.win) + ' 號出' + RPS_NAME[wc] + '，贏了 ' + numOf(G.lose) + ' 號的' + RPS_NAME[lc] + '！');
+            }
+          }
+          if (k > 2.4) {
+            A.item = null; B.item = null;
+            if (!G.win) { if (++G.ties > 3) { endGroup(G); return; } chant(); }
+            else phase(G, 'after');
+          }
+          return;
+        }
+        if (G.phase === 'after') {
+          const w = G.win, l = G.lose;
+          if (!G.f.p) {
+            G.f.p = pick(['flick', 'whine', 'again']);
+            if (G.f.p === 'flick') { line(G, w, '彈額頭！', 1.2); pose(w, poseThrow()); pose(l, P({})); }
+            else if (G.f.p === 'whine') line(G, l, pick(RPS_LOSE), 1.6);
+            else line(G, l, '三戰兩勝！再來！', 1.5);
+          }
+          if (G.f.p === 'flick' && k > 0.6 && !G.f.ow) { G.f.ow = true; pose(l, poseOw()); line(G, l, pick(['好痛～', '哎呦！', '你等著！下次換我！']), 1.4); }
+          if (k > 2.2) {
+            pose(w, P({})); pose(l, P({}));
+            if (G.f.p === 'again' && ++G.rounds < 3) { G.win = null; chant(); }
+            else endGroup(G);
+          }
+        }
+      } },
+
+    tag: { name: '鬼抓人', n: [3, 4], w: 2.5,
+      setup(G) {
+        G.lo = clamp(G.x - 170, 24, Math.max(24, kidMaxX() - 346)); G.hi = Math.min(kidMaxX() - 6, G.lo + 340); G.x = (G.lo + G.hi) / 2;
+        G.it = pick(G.members); G.swaps = 0;
+        G.members.forEach(m => go(m, rand(G.lo, G.hi)));
+        phase(G, 'gather');
+      },
+      step(G) {
+        const it = G.it, runners = G.members.filter(m => m !== it), k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          it.tag = '鬼';
+          line(G, it, '我當鬼！數到三喔～', 1.6);
+          narrate('🏃 ' + tagsOf(G.members) + '在玩鬼抓人，' + numOf(it) + ' 號當鬼');
+          phase(G, 'count'); return;
+        }
+        if (G.phase === 'count') {
+          if (!G.f.go) {
+            G.f.go = true; halt(it); pose(it, poseCover());
+            const farLeft = it.x - G.lo > G.hi - it.x;
+            for (const m of runners) { go(m, (farLeft ? rand(G.lo, G.lo + 90) : rand(G.hi - 90, G.hi)), 110); pose(m, P({})); }
+          }
+          if (k > 2) { pose(it, P({})); phase(G, 'chase'); }
+          return;
+        }
+        if (G.phase === 'chase') {
+          const tgt = runners.slice().sort((p, q) => Math.abs(p.x - it.x) - Math.abs(q.x - it.x))[0];
+          go(it, tgt.x, 118);
+          for (const m of runners) {
+            const d = m.x - it.x, s = Math.sign(d) || 1;
+            if (Math.abs(d) < 150) {
+              let tx = clamp(m.x + s * 70, G.lo, G.hi);
+              if (Math.abs(tx - m.x) < 10) tx = it.x - s * 70;      // 被逼到角落：從鬼旁邊閃過去
+              go(m, clamp(tx, G.lo, G.hi), 104);
+            } else { halt(m); pose(m, poseWave); }
+          }
+          if (Math.abs(tgt.x - it.x) < 14 && k > 0.6) {
+            line(G, it, pick(['抓到你了！', '換你當鬼！', '嘿嘿，抓到了！']), 1.4);
+            it.tag = null; G.it = tgt; tgt.tag = '鬼'; G.swaps++;
+            narrate('🏃 ' + numOf(it) + ' 號抓到 ' + numOf(tgt) + ' 號，換 ' + numOf(tgt) + ' 號當鬼！');
+            G.members.forEach(halt);
+            phase(G, G.swaps >= 3 ? 'end' : 'count');
+          } else if (k > 12) { line(G, it, '你們跑太快了啦～', 1.6); phase(G, 'end'); }
+          return;
+        }
+        if (G.phase === 'end') {
+          if (!G.f.s) { G.f.s = true; G.members.forEach(m => { halt(m); pose(m, posePant()); }); }
+          if (k > 1.6 && !G.f.l) { G.f.l = true; line(G, pick(G.members), pick(['好累喔～', '喘死了…', '下一節再玩！']), 1.6); }
+          if (k > 3.2) endGroup(G);
+        }
+      } },
+
+    statue: { name: '一二三木頭人', n: [4, 5], w: 1.8,
+      setup(G) {
+        G.lo = clamp(G.x - 150, 24, Math.max(24, kidMaxX() - 300)); G.x = G.lo + 150;
+        G.caller = G.members[0]; G.start = G.lo + 270; G.rounds = 0; G.backs = new Set();
+        go(G.caller, G.lo);
+        G.members.slice(1).forEach((m, i) => go(m, G.start + (i % 3) * 9 - 9));
+        phase(G, 'gather');
+      },
+      step(G) {
+        const c = G.caller, ps = G.members.filter(m => m !== c), k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          ps.forEach(m => { m.spd = rand(22, 42); pose(m, P({}), -1); });
+          narrate('🗿 ' + tagsOf(G.members) + '在玩一二三木頭人，' + numOf(c) + ' 號當鬼');
+          phase(G, 'count'); return;
+        }
+        if (G.phase === 'count') {
+          if (!G.f.s) { G.f.s = true; G.f.dur = rand(1.6, 3); pose(c, poseCover(), -1); line(G, c, pick(['一、二、三…', '一、二、三～', '一二三…']), G.f.dur); }
+          for (const m of ps) {
+            if (G.backs.has(m)) { if (Math.abs(m.x - G.start) < 4) G.backs.delete(m); else continue; }
+            go(m, c.x + 20, m.spd);
+          }
+          const hit = ps.find(m => Math.abs(m.x - c.x) < 24);
+          if (hit) { G.hit = hit; phase(G, 'tap'); return; }
+          if (k > G.f.dur) {
+            phase(G, 'look');
+            pose(c, posePoint(), 1);
+            line(G, c, '木頭人！', 1.2);
+            ps.forEach(m => { if (!G.backs.has(m)) { halt(m); pose(m, pick(STATUES)(), -1); } });
+            const still = ps.filter(m => !G.backs.has(m));
+            G.mover = still.length && Math.random() < 0.45 ? pick(still) : null;
+          }
+          return;
+        }
+        if (G.phase === 'look') {
+          const mv = G.mover;
+          if (mv && k > 0.5 && !G.f.w) { G.f.w = true; pose(mv, poseWobble); }
+          if (mv && k > 1.0 && !G.f.c) { G.f.c = true; line(G, c, numOf(mv) + ' 號你動了！回去～', 1.6); narrate('🗿 ' + numOf(mv) + ' 號玩木頭人的時候偷動，被抓到了！'); }
+          if (mv && k > 1.8 && !G.f.b) { G.f.b = true; G.backs.add(mv); go(mv, G.start, 70); line(G, mv, pick(['我哪有！', '好啦…', '可惡～']), 1.4); }
+          if (k > (mv ? 2.6 : 1.8)) { if (++G.rounds > 7) { endGroup(G); return; } phase(G, 'count'); }
+          return;
+        }
+        if (G.phase === 'tap') {
+          if (!G.f.t) {
+            G.f.t = true; line(G, G.hit, '碰！', 1);
+            narrate('🗿 ' + numOf(G.hit) + ' 號拍到鬼了！大家快跑～');
+            pose(c, P({}), 1);
+            ps.forEach(m => go(m, m.x + rand(140, 220), 130));
+          }
+          if (k > 0.5 && !G.f.ch) { G.f.ch = true; go(c, c.x + 130, 118); }
+          if (k > 2.4) endGroup(G);
+        }
+      } },
+
+    rope: { name: '跳繩', n: [3, 3], w: 1.8,
+      setup(G) { [G.L, G.R, G.J] = G.members; G.round = 0; ropePlace(G); },
+      step(G, dt) {
+        const { L, R, J } = G, k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          pose(L, P({}), 1); pose(R, P({}), -1); pose(J, P({}), 1);
+          if (!G.round) narrate('🪢 ' + tagsOf(G.members) + '在跳繩');
+          line(G, L, pick(['預備～跳！', '我們甩，你跳！', '換你跳了！']), 1.4);
+          G.ph = Math.PI; G.count = 0; G.fail = rint(4, 16);
+          phase(G, 'swing'); return;
+        }
+        if (G.phase === 'swing') {
+          const prev = G.ph; G.ph += dt * 5.2;
+          pose(L, poseHold(G.ph)); pose(R, poseHold(G.ph));
+          J.hop = 20 * Math.pow(Math.max(0, Math.cos(G.ph)), 0.7);
+          pose(J, J.hop > 3 ? P({ ra1: 0.5, ra2: 0.9, la1: 0.5, la2: 0.9, rl1: 0.3, rl2: -0.3, ll1: 0.2, ll2: -0.4 }) : P({ ra1: 0.4, la1: 0.4 }));
+          // 繩子轉到最下面（cos = 1）算一下
+          if (Math.floor(prev / (2 * Math.PI)) !== Math.floor(G.ph / (2 * Math.PI))) {
+            if (G.count >= G.fail) { G.ph = Math.round(G.ph / (2 * Math.PI)) * 2 * Math.PI; J.hop = 0; phase(G, 'trip'); return; }
+            G.count++; J.tag = String(G.count);
+          }
+          return;
+        }
+        if (G.phase === 'trip') {
+          if (!G.f.s) {
+            G.f.s = true; pose(L, P({})); pose(R, P({})); pose(J, poseStumble);
+            line(G, J, pick(['哎呀！絆到了！', '腳勾到繩子了啦～', G.count + ' 下！']), 1.5);
+            narrate('🪢 ' + numOf(J) + ' 號跳繩連續跳了 ' + G.count + ' 下！');
+          }
+          if (k > 2) { J.tag = null; J.hop = 0; if (++G.round >= 3) { endGroup(G); return; } [G.L, G.R, G.J] = [G.J, G.L, G.R]; ropePlace(G); }
+        }
+      },
+      draw(G) {
+        if ((G.phase !== 'swing' && G.phase !== 'trip') || !G.L.j || !G.R.j) return;
+        const [x1, y1] = G.L.j.rH, [x2, y2] = G.R.j.rH, hy = (y1 + y2) / 2;
+        const c = Math.cos(G.ph), top = FLOOR - 105 * BASE / 1.5;
+        const mid = c >= 0 ? hy + c * (FLOOR - 1 - hy) : hy + c * (hy - top);
+        g.strokeStyle = '#ff9f1c'; g.lineWidth = 2.5; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(x1, y1); g.quadraticCurveTo((x1 + x2) / 2, 2 * mid - hy, x2, y2); g.stroke();
+      } },
+
+    kick: { name: '踢毽子', n: [1, 1], w: 1.8,
+      setup(G) { go(G.members[0], G.x); G.round = 0; phase(G, 'gather'); },
+      step(G, dt) {
+        const m = G.members[0], k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          pose(m, poseReady(), G.round ? m.act.face : pick([1, -1]));
+          if (!G.round) narrate('🪶 ' + numOf(m) + ' 號在踢毽子');
+          G.h = 30; G.v = 330; G.count = 0; G.fail = rint(5, 22); G.kt = -9; G.sx = m.x + m.f * 9;
+          phase(G, 'play'); return;
+        }
+        G.v -= 760 * dt; G.h += G.v * dt;
+        if (G.phase === 'play') {
+          G.sx = m.x + m.f * 9;
+          if (G.h <= 16 && G.v < 0) {
+            if (G.count < G.fail) { G.v = rand(330, 390); G.count++; G.kt = T; m.tag = String(G.count); }
+            else { G.v = -40; phase(G, 'drop'); G.sx += m.f * 16; return; }
+          }
+          pose(m, T - G.kt < 0.22 ? poseKick() : poseReady());
+        }
+        if (G.h <= 3) { G.h = 3; G.v = 0; }
+        if (G.phase === 'drop') {
+          if (!G.f.s && G.h <= 3) {
+            G.f.s = true;
+            const good = G.count >= 15;
+            pose(m, good ? poseCheer : poseSlump());
+            line(G, m, good ? pick([G.count + ' 下！新紀錄！', '我是踢毽子大王！']) : pick(['啊～掉了！', '差一點點！', '再來再來！']), 1.6);
+            narrate('🪶 ' + numOf(m) + ' 號踢毽子連續踢了 ' + G.count + ' 下！');
+          }
+          if (k > 2.4) { m.tag = null; if (++G.round >= 2) { endGroup(G); return; } phase(G, 'gather'); }
+        }
+      },
+      draw(G) {
+        if (G.phase !== 'play' && G.phase !== 'drop') return;
+        const x = G.sx, y = FLOOR - G.h;
+        g.lineWidth = 2; g.lineCap = 'round';
+        [['#f6c344', -0.35], ['#4cc9f0', 0], ['#46d22e', 0.35]].forEach(([col, a]) => { g.strokeStyle = col; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.sin(a) * 10, y - Math.cos(a) * 10); g.stroke(); });
+        g.fillStyle = '#e63946'; g.beginPath(); g.arc(x, y + 1, 3.2, 0, Math.PI * 2); g.fill();
+      } },
+
+    ball: { name: '丟接球', n: [2, 2], w: 2,
+      setup(G) { const [A, B] = G.members; G.homeA = G.x - 65; G.homeB = G.x + 65; go(A, G.homeA); go(B, G.homeB); G.misses = 0; G.streak = 0; G.best = 0; G.from = A; phase(G, 'gather'); },
+      step(G, dt) {
+        const [A, B] = G.members, k = G.t - G.t0, other = m => m === A ? B : A;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          pose(A, P({}), 1); pose(B, P({}), -1);
+          if (!G.f0) { G.f0 = true; narrate('⚾ ' + tagsOf([A, B]) + '在丟接球'); }
+          G.missAt = rint(3, 8); G.passes = 0;
+          phase(G, 'throw'); return;
+        }
+        if (G.phase === 'throw') {
+          const fr = G.from, to = other(fr);
+          if (!G.f.s) { G.f.s = true; G.dur = rand(0.9, 1.2); G.miss = G.passes + 1 >= G.missAt; pose(fr, poseThrow()); pose(to, poseCatch()); G.p0 = hand(fr).slice(); }
+          const u = Math.min(1, k / G.dur), p1 = G.miss ? [to.x + (to.x > fr.x ? 70 : -70), FLOOR - 6] : hand(to);
+          G.bx = G.p0[0] + (p1[0] - G.p0[0]) * u; G.by = G.p0[1] + (p1[1] - G.p0[1]) * u - Math.sin(u * Math.PI) * 85;
+          if (u > 0.35) pose(fr, P({}));
+          if (u >= 1) {
+            if (!G.miss) { G.passes++; G.streak++; G.best = Math.max(G.best, G.streak); G.from = to; phase(G, 'throw'); }
+            else {
+              G.misses++; G.streak = 0;
+              line(G, fr, pick(['漏接了啦～', '哈哈，你沒接到！', '球跑掉了！']), 1.4);
+              pose(to, P({}));
+              phase(G, 'fetch');
+            }
+          }
+          return;
+        }
+        if (G.phase === 'fetch') {
+          const to = other(G.from), dir = to.x > G.from.x ? 1 : -1;
+          if (k < 0.8) G.bx = clamp(G.bx + dir * 90 * dt * (1 - k / 0.8), 24, kidMaxX() - 6);
+          G.by = FLOOR - 6;
+          if (k > 0.4) go(to, G.bx, 110);
+          if (k > 0.9 && Math.abs(to.x - G.bx) < 4) {
+            if (G.misses >= 2) { narrate('⚾ ' + tagsOf([A, B]) + '丟接球，最多連續接到 ' + G.best + ' 球'); endGroup(G); return; }
+            go(to, to === A ? G.homeA : G.homeB, 60);
+            G.from = to; phase(G, 'carry');
+          }
+          return;
+        }
+        if (G.phase === 'carry') {
+          [G.bx, G.by] = hand(G.from);
+          if (ready(G)) phase(G, 'gather');
+        }
+      },
+      draw(G) {
+        if (G.bx == null || G.phase === 'gather') return;
+        g.fillStyle = '#ff7b3a'; g.strokeStyle = INK; g.lineWidth = 1.5;
+        g.beginPath(); g.arc(G.bx, G.by, 5.5, 0, Math.PI * 2); g.fill(); g.stroke();
+      } },
+
+    height: { name: '比身高', n: [2, 2], w: 1.5,
+      setup(G) { const [A, B] = G.members; go(A, G.x - 6); go(B, G.x + 6); phase(G, 'gather'); },
+      step(G) {
+        const [A, B] = G.members, k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          pose(A, P({}), -1); pose(B, P({}), 1);         // 背靠背
+          const ha = kidHeight(A.num), hb = kidHeight(B.num);
+          const tall = ha >= hb ? A : B, short = tall === A ? B : A, diff = Math.abs(ha - hb);
+          G.script = [
+            [A, '我們來比身高！'],
+            [B, '背靠背站好，不准踮腳！'],
+            [tall, diff <= 2 ? '欸？好像一樣高！' : '看！我比較高！', () => {
+              narrate(diff <= 2 ? '📏 ' + tagsOf([A, B]) + '比身高，幾乎一樣高！' : '📏 ' + numOf(tall) + ' 號比 ' + numOf(short) + ' 號高 ' + diff + ' 公分');
+            }],
+            [short, diff <= 2 ? '那我們是雙胞胎！' : pick(['你一定有踮腳！', '我還會再長高的！', '我每天喝牛奶，下次就贏你！'])],
+          ];
+          G.tall = tall; G.i = 0; G.next = 0.3;
+          phase(G, 'talk'); return;
+        }
+        if (G.phase === 'talk') {
+          const done = runScript(G, k);
+          if (G.i >= 3) pose(G.tall, poseMeasure());          // 手平放在兩個人頭上量
+          if (done) phase(G, 'bye');
+          return;
+        }
+        if (k > 1.4) endGroup(G);
+      } },
+  };
+  function ropePlace(G) { go(G.L, G.x - 58, 60); go(G.R, G.x + 58, 60); go(G.J, G.x, 60); G.L.tag = G.R.tag = G.J.tag = null; phase(G, 'gather'); }
+
+  // 可以找來玩的人：站在地上、沒事做、不是被抓的人
+  const freeKid = k => k.surf === 'floor' && !k.air && !k.cell && !k.fear && !k.goal && !k.phone && !k.group
+    && ['idle', 'walk', 'run'].includes(k.act.type) && k.x < kidMaxX() - 10 && k.y >= FLOOR - 1;
+  // 找一塊空地、找附近閒著的人開始一個活動；同時最多 3 組，不重複同一種
+  function startActivity(force) {
+    if (S.raid) return null;
+    const ks = kids();
+    if (!force && groups.length >= clamp(Math.floor(ks.length / 5), 1, 3)) return null;
+    const free = ks.filter(freeKid);
+    const defs = Object.entries(ACTS).filter(([id, d]) => free.length >= d.n[0] && (!d.scenes || d.scenes.includes(S.scene)) && (force ? id === force : !groups.some(G => G.kind === id)));
+    if (!defs.length) return null;
+    let r = Math.random() * defs.reduce((x, [, d]) => x + d.w, 0), id = defs[defs.length - 1][0];
+    for (const [i, d] of defs) { r -= d.w; if (r <= 0) { id = i; break; } }
+    const def = ACTS[id];
+    const lo = 200, hi = kidMaxX() - 110;       // 左邊是積木堆和開關按鈕
+    if (hi <= lo) return null;
+    const b = bear();
+    let cx = null, best = -1;
+    for (let i = 0; i < 10; i++) {
+      const x = rand(lo, hi);
+      const dmin = Math.min(1e9, ...groups.map(G => Math.abs(G.x - x)), b && b.surf === 'floor' ? Math.abs(b.x - x) + 120 : 1e9, S.tower ? Math.abs(towerX - x) + 140 : 1e9);
+      if (dmin > best) { best = dmin; cx = x; }
+    }
+    if (best < 260 && !force) return null;
+    const n = Math.min(rint(def.n[0], def.n[1]), free.length);
+    const ms = free.sort((p, q) => Math.abs(p.x - cx) - Math.abs(q.x - cx)).slice(0, n);
+    const G = { kind: id, def, members: ms, x: cx, t: 0, t0: 0, f: {} };
+    for (const m of ms) { m.goal = null; m.phone = false; m.carry = null; setAct(m, 'play', { g: G }); m.group = G; }
+    def.setup(G);
+    groups.push(G);
+    return G;
+  }
+  function endGroup(G) {
+    if (G.over) return;
+    G.over = true;
+    for (const m of G.members) if (!m.gone && m.act.type === 'play' && m.act.g === G) setAct(m, 'idle', { dur: rand(0.8, 2.5) });
+  }
+  function stepGroups(dt) {
+    for (const G of groups) {
+      if (G.over) continue;
+      // 有人被抓走、跑掉：這組就散了
+      if (G.members.some(m => m.gone || m.act.type !== 'play' || m.act.g !== G) || G.t > 75) { endGroup(G); continue; }
+      G.t += dt;
+      G.def.step(G, dt);
+    }
+    groups = groups.filter(G => !G.over);
+  }
+  function drawGroups() { for (const G of groups) if (G.def.draw) G.def.draw(G); }
+
+  // ---------- 場景：操場 → 忍者村 → 雪地（每 4 分鐘換一次） ----------
+  const SCENES = [
+    { id: 'playground', label: '操 場', banner: '☀️ 回到操場啦！' },
+    { id: 'ninja', label: '忍 者 村', banner: '🥷 場景切換：忍者村！大家都變成忍者了，還會瞬間移動' },
+    { id: 'snow', label: '雪 地', banner: '❄️ 場景切換：下雪了！操場變成一片雪地' },
+  ];
+  const sceneLabel = () => (SCENES.find(x => x.id === S.scene) || SCENES[0]).label;
+  function setScene(id) {
+    if (!SCENES.some(x => x.id === id) || id === S.scene) return;
+    S.scene = id;
+    if (id !== 'snow') S.snowmen = [];
+    // 只屬於別的場景的活動（雪仗、射飛鏢…）收掉
+    for (const G of groups) if (G.def.scenes && !G.def.scenes.includes(id)) endGroup(G);
+    banner(SCENES.find(x => x.id === id).banner);
+    if (pgLabel && !pgLabel.classList.contains('narr')) pgLabel.textContent = sceneLabel();
+    // 換場景時大家嚇一跳、跳一下
+    for (const k of kids()) if (!k.air && STANDING.includes(k.act.type) && !k.fear && Math.random() < 0.5) { k.goal = null; setAct(k, 'flipHop'); k.vx = rand(-60, 60); k.vy = -460; k.air = true; }
+    for (let i = 0; i < 6; i++) smoke(rand(80, kidMaxX()), FLOOR);
+  }
+  // 背景：雪地有雪和飄雪；忍者村有鳥居和櫻花瓣（都是淡淡的，不搶人物）
+  function drawScene() {
+    if (S.scene === 'snow') {
+      g.fillStyle = 'rgba(235,242,255,0.85)';
+      roundRect(0, FLOOR - 5, pit.x1 - 20, 9, 4); g.fill();
+      for (const sm of S.snowmen) drawSnowman(sm.x, 1, sm.hat);
+      g.fillStyle = 'rgba(255,255,255,0.75)';
+      for (let i = 0; i < 70; i++) {
+        const x = (i * 137.5 + Math.sin(T * 0.7 + i) * 18 + T * (8 + (i % 4) * 4)) % W;
+        const y = (i * 91.3 + T * (28 + (i % 5) * 9)) % (H - 20);
+        g.beginPath(); g.arc(x, y, 1.4 + (i % 3) * 0.7, 0, Math.PI * 2); g.fill();
+      }
+    } else if (S.scene === 'ninja') {
+      // 鳥居
+      const cx = Math.min(kidMaxX() - 130, W * 0.42), hw = 70 * BASE / 1.5, top = FLOOR - 165 * BASE / 1.5;
+      g.save(); g.globalAlpha = 0.5; g.fillStyle = '#c0392b';
+      g.fillRect(cx - hw + 8, top + 10, 10, FLOOR - top - 10); g.fillRect(cx + hw - 18, top + 10, 10, FLOOR - top - 10);
+      g.fillRect(cx - hw - 16, top, hw * 2 + 32, 10); g.fillRect(cx - hw - 4, top + 26, hw * 2 + 8, 7);
+      g.fillStyle = '#1e1e24'; g.fillRect(cx - hw - 20, top - 6, hw * 2 + 40, 7);
+      g.restore();
+      // 櫻花瓣
+      g.fillStyle = 'rgba(255,183,213,0.8)';
+      for (let i = 0; i < 26; i++) {
+        const x = (i * 211.7 + T * (22 + (i % 3) * 8) + Math.sin(T + i) * 20) % W;
+        const y = (i * 67.1 + T * (20 + (i % 4) * 6)) % (H - 20);
+        g.save(); g.translate(x, y); g.rotate(T * 2 + i); g.beginPath(); g.ellipse(0, 0, 4, 2.2, 0, 0, Math.PI * 2); g.fill(); g.restore();
+      }
+    }
+  }
+  function drawSnowman(x, k, hat) {
+    const r1 = 17 * k, r2 = 12 * k, r3 = 9 * k;
+    g.fillStyle = '#f4f7ff'; g.strokeStyle = '#9aa6c0'; g.lineWidth = 1.5;
+    if (r1 > 1) { g.beginPath(); g.arc(x, FLOOR - r1, r1, 0, Math.PI * 2); g.fill(); g.stroke(); }
+    if (k > 0.45) { g.beginPath(); g.arc(x, FLOOR - 2 * r1 - r2 + 4, r2, 0, Math.PI * 2); g.fill(); g.stroke(); }
+    if (k > 0.75) {
+      const hy = FLOOR - 2 * r1 - 2 * r2 - r3 + 7;
+      g.beginPath(); g.arc(x, hy, r3, 0, Math.PI * 2); g.fill(); g.stroke();
+      if (k >= 1) {
+        g.fillStyle = INK; g.beginPath(); g.arc(x - 3, hy - 2, 1.4, 0, Math.PI * 2); g.arc(x + 3, hy - 2, 1.4, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#ff8c1a'; g.beginPath(); g.moveTo(x, hy + 1); g.lineTo(x + 9, hy + 2.5); g.lineTo(x, hy + 4); g.fill();
+        if (hat) { g.fillStyle = '#e63946'; g.fillRect(x - 8, hy - r3 - 2, 16, 4); g.fillRect(x - 5, hy - r3 - 9, 10, 8); }
+      }
+    }
+  }
+
+  // ---------- 骷髏出來散步：走到操場上或爬上卡片，東張西望再回去 ----------
+  function skullPatrol() {
+    if (S.hunting || S.patrol || S.raid) return false;
+    const s = pick(skulls().filter(x => x.home && !x.minion && !x.dead && x.act.type === 'skullHome'));
+    if (!s) return false;
+    const plats = [...surfaces.values()].filter(p => !p.floor && p.id !== 'tower' && p.x2 - p.x1 > 90 && p.x1 < kidMaxX());
+    s.home = false; S.patrol = { s, t: T };
+    if (plats.length && Math.random() < 0.5) {
+      const p = pick(plats);
+      travel(s, p.id, rand(p.x1 + 20, p.x2 - 20), 'patrolEnd');
+      narrate('💀 骷髏貼著牆爬上去了…站在上面的人小心！', true);
+    } else {
+      travel(s, 'floor', roomyX(s, 220, kidMaxX() - 40), 'patrolEnd');     // 走到沒有人在玩的地方
+      narrate('💀 骷髏跑出來散步了…大家小心', true);
+    }
+    if (s.goal) s.goal.walk = true;
+    return true;
+  }
+  function endPatrol(s) {
+    if (!S.patrol || S.patrol.s !== s) return;
+    S.patrol = null;
+    if (s.gone) return;
+    s.home = true;
+    travel(s, 'floor', rand(pit.x1 + 30, pit.x2 - 30), 'home');
+    if (s.goal) s.goal.walk = true;
+  }
+  // 散步的骷髏旁邊的人會躲開（在卡片上的就跳下去）
+  function patrolScare() {
+    const P_ = S.patrol;
+    if (!P_) return;
+    if (P_.s.gone || S.hunting) { if (!P_.s.gone) endPatrol(P_.s); else S.patrol = null; return; }
+    if (T - P_.t > 40) { endPatrol(P_.s); return; }
+    const s = P_.s;
+    let shouted = false;
+    for (const k of kids()) {
+      if (k.air || k.fear || k.surf !== s.surf || Math.abs(k.x - s.x) > (k.group ? 60 : 130) || ['grabbed', 'sink', 'thrown', 'tele'].includes(k.act.type)) continue;
+      if (!shouted) shouted = say(k, pick(['骷髏！', '快閃開！', '它過來了！']), 1.2, 1);
+      k.goal = null;
+      if (k.surf === 'floor') { const d = Math.sign(k.x - s.x) || 1; setAct(k, 'flee', { tx: clamp(k.x + d * rand(160, 260), 20, kidMaxX()) }); }
+      else travel(k, 'floor', clamp(k.x + (Math.sign(k.x - s.x) || 1) * 120, 20, kidMaxX()));
+    }
+  }
+
+  // ---------- 新的活動：籃球、積木樓梯、雪仗、溜冰、堆雪人、射飛鏢、分身術 ----------
+  const poseShoot = () => P({ ra1: 2.7, ra2: 2.9, la1: 2.5, la2: 2.9, hipH: 23 });
+  const poseMake = () => P({ lean: 0.9, ra1: 1.0, ra2: 0.6, la1: 0.9, la2: 0.5, rl1: 1.3, rl2: -0.6, ll1: 1.1, ll2: -0.8, hipH: 12 });
+  const poseSkate = (t, side) => P({ lean: 0.45, ra1: -0.7 + 0.3 * side, ra2: -0.5, la1: 0.8 - 0.3 * side, la2: 1.1, rl1: side > 0 ? 0.25 : -1.1, rl2: side > 0 ? 0 : -0.9, ll1: side > 0 ? -1.1 : 0.25, ll2: side > 0 ? -0.9 : 0, hipH: 19 });
+  const poseSign = () => P({ ra1: 1.3, ra2: 3.3, la1: 1.2, la2: 3.3 });          // 忍者結印
+  // 拋物線：u 從 0 到 1，從 p0 飛到 p1，最高多 h
+  const arc = (p0, p1, u, h) => [p0[0] + (p1[0] - p0[0]) * u, p0[1] + (p1[1] - p0[1]) * u - Math.sin(u * Math.PI) * h];
+
+  Object.assign(ACTS, {
+    hoop: { name: '投籃', n: [2, 3], w: 3,
+      setup(G) {
+        G.hx = clamp(G.x + 80, 260, kidMaxX() - 10); G.up = 0; G.turn = 0; G.score = new Map();
+        G.members.forEach((m, i) => go(m, G.hx - 90 - i * 30));
+        phase(G, 'gather');
+      },
+      step(G, dt) {
+        const ms = G.members, k = G.t - G.t0, n = ms.length;
+        const rim = [G.hx - 16, FLOOR - 118 * BASE / 1.5];
+        if (G.phase !== 'end') G.up = Math.min(1, G.up + dt * 1.6); else G.up = Math.max(0, G.up - dt * 1.4);
+        if (G.phase === 'gather') {
+          if (k < 0.1 && !G.f.n) { G.f.n = true; dust(G.hx, FLOOR, 12); }
+          if (!ready(G)) return;
+          ms.forEach(m => pose(m, P({}), 1));
+          narrate('🏀 地上突然冒出一個籃球架！' + tagsOf(ms) + '在比投籃');
+          phase(G, 'shoot'); return;
+        }
+        if (G.phase === 'shoot') {
+          const m = ms[G.turn % n];
+          if (!G.f.s) {
+            G.f.s = true; G.make = Math.random() < 0.5; G.p0 = null;
+            ms.forEach(o => pose(o, o === m ? poseShoot() : P({ tilt: -0.2 }), 1));
+          }
+          if (!G.p0 && m.j) G.p0 = [m.j.head[0], m.j.head[1] - 14];
+          if (!G.p0) return;
+          const u = Math.min(1, k / 1.0);
+          if (u < 1) [G.bx, G.by] = arc(G.p0, [rim[0] + (G.make ? 0 : 9), rim[1] - 6], u, 70);
+          else if (G.make) { G.by = Math.min(FLOOR - 6, G.by + 260 * dt); G.bx = rim[0]; }
+          else { if (!G.f.bv) { G.f.bv = { vx: -rand(80, 150), vy: -180 }; } G.f.bv.vy += 900 * dt; G.bx += G.f.bv.vx * dt; G.by = Math.min(FLOOR - 6, G.by + G.f.bv.vy * dt); }
+          if (u >= 1 && !G.f.r) {
+            G.f.r = true;
+            if (G.make) { G.score.set(m, (G.score.get(m) || 0) + 1); m.tag = String(G.score.get(m)); line(G, m, pick(['進了！', '空心球！', '耶！三分！']), 1.3); pose(m, poseCheer); }
+            else line(G, m, pick(['打框了…', '差一點點！', '啊～歪掉了']), 1.3);
+          }
+          if (k > 2.3) { G.turn++; phase(G, G.turn >= n * 3 ? 'end' : 'shoot'); }
+          return;
+        }
+        if (G.phase === 'end') {
+          if (!G.f.e) {
+            G.f.e = true; G.bx = null;
+            const best = ms.slice().sort((p, q) => (G.score.get(q) || 0) - (G.score.get(p) || 0))[0];
+            narrate('🏀 投籃比賽：' + numOf(best) + ' 號投進最多，' + (G.score.get(best) || 0) + ' 球！');
+            ms.forEach(m => { m.tag = null; pose(m, m === best ? poseCheer : P({})); });
+          }
+          if (k > 1.6) endGroup(G);
+        }
+      },
+      draw(G) {
+        if (G.up <= 0) return;
+        const k = G.up, rimY = FLOOR - 118 * BASE / 1.5, hx = G.hx;
+        const lift = (1 - k) * (FLOOR - rimY + 40);
+        g.save(); g.beginPath(); g.rect(hx - 60, 0, 80, FLOOR); g.clip();
+        g.translate(0, lift);
+        g.fillStyle = '#7d7f8f'; g.fillRect(hx + 2, rimY - 34, 5, FLOOR - rimY + 34);
+        g.fillStyle = '#f4f4f8'; g.strokeStyle = INK; g.lineWidth = 1.5; g.fillRect(hx - 4, rimY - 40, 8, 46); g.strokeRect(hx - 4, rimY - 40, 8, 46);
+        g.strokeStyle = '#ff6b1a'; g.lineWidth = 3; g.beginPath(); g.moveTo(hx - 30, rimY); g.lineTo(hx - 4, rimY); g.stroke();
+        g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 1;
+        for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(hx - 30 + i * 8, rimY); g.lineTo(hx - 25 + i * 6, rimY + 16); g.stroke(); }
+        g.restore();
+        if (G.bx != null) { g.fillStyle = '#ff7b1a'; g.strokeStyle = INK; g.lineWidth = 1.5; g.beginPath(); g.arc(G.bx, G.by, 6, 0, Math.PI * 2); g.fill(); g.stroke(); }
+      } },
+
+    pyramid: { name: '積木樓梯', n: [3, 4], w: 3, scenes: ['playground'],
+      setup(G) {
+        G.B = 24 * BASE / 1.5; G.cx = clamp(G.x, 200 + 3 * G.B, kidMaxX() - 3 * G.B); G.x = G.cx;
+        G.placed = 0; G.colors = []; G.st = new Map();
+        G.members.forEach(m => { G.st.set(m, 'toPile'); go(m, pile.x + 30 + rand(-8, 8), 120); });
+        narrate('🧱 ' + tagsOf(G.members) + '要用積木疊樓梯');
+        phase(G, 'build');
+      },
+      // 第 i 塊積木的位置：最下面 5 塊、往上 4、3、2、1（每層往內縮半塊）
+      spot(G, i) { let r = 0, c = i; while (c >= 5 - r) { c -= 5 - r; r++; } return [G.cx - (5 - r) * G.B / 2 + c * G.B, FLOOR - (r + 1) * G.B]; },
+      height(G, x) { let h = 0; for (let r = 0; r < 5; r++) if (Math.abs(x - G.cx) <= (5 - r) * G.B / 2 - 3) h = r + 1; return FLOOR - h * G.B; },
+      step(G) {
+        const ms = G.members, k = G.t - G.t0, foot = G.cx - 2.5 * G.B - 16, foot2 = G.cx + 2.5 * G.B + 16;
+        if (G.phase === 'build') {
+          const carrying = ms.filter(m => m.carry).length;
+          for (const m of ms) {
+            const st = G.st.get(m);
+            if (Math.abs(m.act.tx - m.x) >= 3) continue;
+            if (st === 'toPile') {
+              if (G.placed + ms.filter(o => o.carry).length * 2 >= 15) { G.st.set(m, 'wait'); go(m, foot - 20 - ms.indexOf(m) * 16, 60); continue; }
+              m.carry = pick(['#e63946', '#f6c344', '#4cc9f0', '#46d22e', '#9b5de5', '#f4a261']);
+              G.st.set(m, 'carry'); go(m, foot + rand(-14, 6), 100);
+            } else if (st === 'carry') {
+              // 一次抱兩塊
+              for (let n2 = 0; n2 < 2 && G.placed < 15; n2++) { G.colors[G.placed] = n2 ? pick(['#e63946', '#f6c344', '#4cc9f0', '#46d22e']) : m.carry; const [bx, by] = this.spot(G, G.placed); sparkle(bx + G.B / 2, by + G.B / 2); G.placed++; }
+              m.carry = null; m.act.face = 1; G.st.set(m, 'toPile'); go(m, pile.x + 30 + rand(-8, 8), 120);
+            }
+          }
+          if (G.placed >= 15 && !carrying) {
+            ms.forEach((m, i) => { G.st.set(m, 0); go(m, foot - i * 18, 70); });
+            phase(G, 'count');
+          }
+          return;
+        }
+        if (G.phase === 'count') {
+          if (!ready(G)) return;
+          if (!G.f.c) { G.f.c = true; ms.forEach(m => pose(m, P({}), 1)); line(G, ms[0], '5、4、3、2、1！蓋好了！', 2); narrate('🧱 ' + tagsOf(ms) + '用積木疊出 5、4、3、2、1 的樓梯！'); }
+          if (k > 2.2) phase(G, 'climb');
+          return;
+        }
+        if (G.phase === 'climb') {
+          let done = 0;
+          ms.forEach((m, i) => {
+            const st = G.st.get(m);
+            if (st === 0 && k > i * 1.6) { G.st.set(m, 1); m.act.yf = x => this.height(G, x); go(m, foot, 70); }
+            else if (st === 1 && Math.abs(m.x - foot) < 3) { G.st.set(m, 2); go(m, G.cx, 32); }
+            else if (st === 2 && Math.abs(m.x - G.cx) < 3) {
+              G.st.set(m, 3); m.topAt = G.t;
+              if (Math.random() < 0.6) { line(G, m, pick(['看我的紙飛機！', '飛啊～', '我最高！']), 1.5); parts.push({ kind: 'plane', x: m.x + 8, y: m.y - 50, vx: rand(110, 160), vy: -20, life: 3, max: 3 }); pose(m, poseThrow(), 1); }
+              else { line(G, m, pick(['我最高！', '好高喔～', '大家看我！']), 1.4); pose(m, poseCheer); }
+            } else if (st === 3 && G.t - m.topAt > 1.6) { G.st.set(m, 4); pose(m, P({})); go(m, foot2 + i * 16, 32); }
+            else if (st === 4 && Math.abs(m.x - m.act.tx) < 3) { G.st.set(m, 5); m.act.yf = null; m.y = FLOOR; }
+            if (G.st.get(m) === 5) done++;
+          });
+          if (done === ms.length) phase(G, 'knock');
+          return;
+        }
+        if (G.phase === 'knock') {
+          const m = ms[ms.length - 1];
+          if (!G.f.k) { G.f.k = true; go(m, foot2 - 6, 60); }
+          if (Math.abs(m.x - m.act.tx) < 3 && !G.f.b) {
+            G.f.b = true; pose(m, P({ lean: 0.25, ra1: 1.57, ra2: 1.57, la1: 0.9, la2: 2.3, rl1: 0.5, ll1: -0.4, hipH: 20 }), -1);
+            for (let i = 0; i < G.placed; i++) { const [bx, by] = this.spot(G, i); parts.push({ kind: 'block', color: G.colors[i] || '#f6c344', x: bx + G.B / 2, y: by + G.B / 2, vx: rand(-320, -60), vy: rand(-420, -120), rot: 0, vr: rand(-8, 8), life: 2.2, max: 2.2 }); }
+            G.placed = 0; line(G, m, '倒囉～', 1.2);
+          }
+          if (G.f.b && k > 2.4) endGroup(G);
+        }
+      },
+      under(G) {
+        for (let i = 0; i < G.placed; i++) {
+          const [x, y] = this.spot(G, i);
+          g.fillStyle = G.colors[i] || '#f6c344'; g.strokeStyle = INK; g.lineWidth = 2;
+          roundRect(x + 1, y + 1, G.B - 2, G.B - 2, 4); g.fill(); g.stroke();
+        }
+      } },
+
+    snowball: { name: '打雪仗', n: [2, 4], w: 6, scenes: ['snow'],
+      setup(G) {
+        const ms = G.members;
+        G.A = ms.filter((_, i) => i % 2 === 0); G.Bt = ms.filter((_, i) => i % 2 === 1);
+        G.A.forEach((m, i) => go(m, G.x - 80 - i * 30)); G.Bt.forEach((m, i) => go(m, G.x + 80 + i * 30));
+        G.balls = []; G.hits = [0, 0]; G.st = new Map();
+        phase(G, 'gather');
+      },
+      step(G, dt) {
+        const ms = G.members, k = G.t - G.t0;
+        const team = m => G.A.includes(m) ? 0 : 1, foes = m => team(m) ? G.A : G.Bt;
+        for (const b of G.balls) {
+          b.u = Math.min(1, b.u + dt / b.dur);
+          [b.x, b.y] = arc(b.p0, b.p1(), b.u, b.big ? 60 : 45);
+          if (b.u >= 1 && !b.done) {
+            b.done = true;
+            for (let i = 0; i < (b.big ? 22 : 8); i++) parts.push({ kind: 'snow', x: b.x, y: b.y, vx: rand(-120, 120), vy: rand(-200, -40), life: 0.7, max: 0.7 });
+            for (const t of b.targets) if (b.hit) { G.st.get(t).ouch = T; }
+            if (b.hit && b.targets.length === 1 && Math.random() < 0.35) line(G, b.targets[0], pick(['好冰！', '中了啦～', '哇！冷冷冷！']), 1.2);
+          }
+        }
+        G.balls = G.balls.filter(b => !b.done);
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          ms.forEach(m => { pose(m, P({}), team(m) ? -1 : 1); G.st.set(m, { cd: rand(0.5, 1.8), ouch: -9 }); });
+          line(G, pick(ms), '打雪仗囉！', 1.4);
+          narrate('❄️ ' + tagsOf(G.A) + ' 對上 ' + tagsOf(G.Bt) + '，打雪仗！');
+          phase(G, 'fight'); return;
+        }
+        if (G.phase === 'fight') {
+          for (const m of ms) {
+            const st = G.st.get(m);
+            st.cd -= dt;
+            if (T - st.ouch < 0.6) { pose(m, poseStumble); continue; }
+            if (st.cd > 0.6) pose(m, poseMake());
+            else if (st.cd > 0) pose(m, P({ ra1: 2.6, ra2: 3.0, la1: 0.6 }));
+            else {
+              const tgt = pick(foes(m)), hit = Math.random() < 0.55, p0 = hand(m).slice();
+              const miss = rand(25, 45) * (team(m) ? -1 : 1);
+              G.balls.push({ p0, p1: () => hit ? [tgt.x, tgt.y - 50 * tgt.s / 1.5] : [tgt.x + miss, FLOOR - 4], u: 0, dur: 0.75, hit, targets: [tgt] });
+              if (hit) G.hits[team(m)]++;
+              pose(m, poseThrow()); st.cd = rand(1.4, 2.4);
+            }
+          }
+          if (k > 13) phase(G, 'finale');
+          return;
+        }
+        if (G.phase === 'finale') {
+          const win = G.hits[0] >= G.hits[1] ? 0 : 1, thrower = (win ? G.Bt : G.A)[0], losers = win ? G.A : G.Bt;
+          if (!G.f.s) {
+            G.f.s = true; ms.forEach(m => pose(m, P({})));
+            pose(thrower, poseShoot()); line(G, thrower, '大雪球來了！', 1.6);
+          }
+          if (k > 1.2 && !G.f.t) {
+            G.f.t = true;
+            const cx = losers.reduce((x, m) => x + m.x, 0) / losers.length;
+            G.balls.push({ p0: [thrower.x, thrower.y - 70], p1: () => [cx, FLOOR - 40], u: 0, dur: 1.0, hit: true, big: true, targets: losers });
+            pose(thrower, poseThrow());
+          }
+          if (G.f.t) for (const m of losers) if (T - G.st.get(m).ouch < 1) pose(m, poseStumble);
+          if (k > 2.4 && !G.f.n) {
+            G.f.n = true;
+            narrate('❄️ 雪仗結束！' + tagsOf(G.A) + '打中 ' + G.hits[0] + ' 次，' + tagsOf(G.Bt) + '打中 ' + G.hits[1] + ' 次');
+            losers.forEach(m => pose(m, P({ lean: -0.1, ra1: 2.5, ra2: 3.2, la1: -2.5, la2: -3.2 })));
+            line(G, losers[0], pick(['全身都是雪啦！', '好冰喔～～', '下次換我們！']), 1.6);
+          }
+          if (k > 4) endGroup(G);
+        }
+      },
+      draw(G) {
+        g.fillStyle = '#ffffff'; g.strokeStyle = '#9aa6c0'; g.lineWidth = 1;
+        for (const b of G.balls) { g.beginPath(); g.arc(b.x, b.y, b.big ? 13 : 4.5, 0, Math.PI * 2); g.fill(); g.stroke(); }
+      } },
+
+    skate: { name: '溜冰', n: [2, 3], w: 4, scenes: ['snow'],
+      setup(G) { G.members.forEach((m, i) => go(m, G.x + (i - 1) * 40)); G.st = new Map(); phase(G, 'gather'); },
+      step(G, dt) {
+        const ms = G.members, k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          narrate('⛸️ ' + tagsOf(ms) + '在冰上溜冰');
+          ms.forEach((m, i) => { halt(m); G.st.set(m, { ph: i * 2.1, fall: -9 }); });
+          G.fallAt = rand(3, 7); G.spinAt = rand(6, 10);
+          phase(G, 'skate'); return;
+        }
+        for (const [i, m] of ms.entries()) {
+          const st = G.st.get(m);
+          if (T - st.fall < 1.5) { m.rot = -m.f * 1.2; pose(m, P({ ra1: 2.2, la1: -2.2, rl1: 1.4, ll1: 1.2, hipH: 6 })); continue; }
+          m.rot = 0;
+          st.ph += dt * 1.3;
+          const nx = G.x + Math.sin(st.ph) * 65 + (i - 1) * 20;
+          const v = nx - m.x; m.x = nx;
+          if (Math.abs(v) > 0.05) m.act.face = Math.sign(v);
+          if (st.spin && T - st.spin < 1.2) { m.act.face = Math.sin(T * 25) > 0 ? 1 : -1; pose(m, P({ ra1: 1.57, ra2: 1.57, la1: -1.57, la2: -1.57 })); }
+          else pose(m, poseSkate(T, Math.sin(st.ph * 2)));
+        }
+        if (k > G.fallAt && !G.f.fall) {
+          G.f.fall = true; const m = pick(ms); G.st.get(m).fall = T;
+          line(G, m, pick(['哎呀！滑倒了！', '我的屁股～', '冰好滑喔！']), 1.4);
+          narrate('⛸️ ' + numOf(m) + ' 號溜冰滑倒了，一屁股坐在冰上～');
+        }
+        if (k > G.spinAt && !G.f.spin) { G.f.spin = true; const m = pick(ms); G.st.get(m).spin = T; line(G, m, '看我轉圈圈！', 1.3); }
+        if (k > 15) endGroup(G);
+      },
+      under(G) {
+        if (G.phase === 'gather') return;
+        g.fillStyle = 'rgba(160,215,255,0.45)'; g.strokeStyle = 'rgba(220,240,255,0.8)'; g.lineWidth = 1.5;
+        g.beginPath(); g.ellipse(G.x, FLOOR + 1, 120, 9, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      } },
+
+    snowman: { name: '堆雪人', n: [2, 2], w: 3, scenes: ['snow'],
+      setup(G) { const [A, B] = G.members; go(A, G.x - 26); go(B, G.x + 26); G.k = 0; phase(G, 'gather'); },
+      step(G, dt) {
+        const [A, B] = G.members, k = G.t - G.t0;
+        if (G.phase === 'gather') { if (!ready(G)) return; pose(A, poseMake(), 1); pose(B, poseMake(), -1); line(G, A, '我們來堆雪人！', 1.6); phase(G, 'build'); return; }
+        if (G.phase === 'build') {
+          G.k = Math.min(1, k / 8);
+          const push = Math.sin(T * 6) > 0;
+          pose(A, push ? poseMake() : P({ lean: 0.5, ra1: 1.4, ra2: 1.2, la1: 1.3, la2: 1.1, hipH: 17 }));
+          pose(B, push ? P({ lean: 0.5, ra1: 1.4, ra2: 1.2, la1: 1.3, la2: 1.1, hipH: 17 }) : poseMake());
+          if (G.k >= 1) {
+            if (S.snowmen.length >= 3) S.snowmen.shift();
+            S.snowmen.push({ x: G.x, hat: Math.random() < 0.5 });
+            pose(A, poseCheer); pose(B, poseCheer); line(G, B, pick(['雪人完成了！', '幫它戴帽子～', '好可愛！']), 1.6);
+            narrate('⛄ ' + tagsOf([A, B]) + '堆了一個雪人！');
+            phase(G, 'done');
+          }
+          return;
+        }
+        if (k > 2.4) endGroup(G);
+      },
+      under(G) { if (G.phase === 'build') drawSnowman(G.x, G.k, false); } },
+
+    shuriken: { name: '射飛鏢', n: [2, 3], w: 5, scenes: ['ninja'],
+      setup(G) {
+        G.tx = clamp(G.x + 95, 300, kidMaxX() - 10); G.stuck = []; G.turn = 0; G.score = new Map();
+        G.members.forEach((m, i) => go(m, G.tx - 150 - i * 26));
+        phase(G, 'gather');
+      },
+      step(G) {
+        const ms = G.members, k = G.t - G.t0, n = ms.length, cy = FLOOR - 62;
+        if (G.phase === 'gather') { if (!ready(G)) return; ms.forEach(m => pose(m, P({}), 1)); narrate('🥷 ' + tagsOf(ms) + '在練習射飛鏢'); phase(G, 'throw'); return; }
+        if (G.phase === 'throw') {
+          const m = ms[G.turn % n];
+          if (!G.f.s) { G.f.s = true; G.err = [rand(-13, 13), rand(-13, 13)]; pose(m, poseSign()); G.p0 = null; }
+          if (k > 0.4 && !G.p0) { G.p0 = hand(m).slice(); pose(m, P({ lean: 0.2, ra1: 1.6, ra2: 1.6, la1: -0.6 })); }
+          if (G.p0) {
+            const u = Math.min(1, (k - 0.4) / 0.4);
+            [G.sx, G.sy] = arc(G.p0, [G.tx + G.err[0] * 0.3, cy + G.err[1]], u, 12);
+            if (u >= 1 && !G.f.h) {
+              G.f.h = true; G.stuck.push([G.err[0] * 0.3, G.err[1]]); G.sx = null;
+              const d = Math.hypot(G.err[0] * 0.3, G.err[1]);
+              if (d < 5) { G.score.set(m, (G.score.get(m) || 0) + 1); line(G, m, '正中紅心！', 1.3); pose(m, poseCheer); }
+              else if (Math.random() < 0.4) line(G, m, pick(['差一點！', '再一次！', '喝！']), 1.1);
+            }
+          }
+          if (k > 1.8) { G.turn++; pose(m, P({})); phase(G, G.turn >= n * 3 ? 'end' : 'throw'); }
+          return;
+        }
+        if (!G.f.e) {
+          G.f.e = true;
+          const best = ms.slice().sort((p, q) => (G.score.get(q) || 0) - (G.score.get(p) || 0))[0];
+          narrate((G.score.get(best) ? '🥷 ' + numOf(best) + ' 號射中紅心 ' + G.score.get(best) + ' 次！' : '🥷 射飛鏢練習結束，大家都沒射中紅心～'));
+        }
+        if (k > 1.5) endGroup(G);
+      },
+      under(G) {
+        const x = G.tx, cy = FLOOR - 62;
+        g.fillStyle = '#8a5a2b'; g.fillRect(x - 3, cy, 6, FLOOR - cy);
+        [[20, '#f4ead5'], [14, '#c0392b'], [9, '#f4ead5'], [4.5, '#c0392b']].forEach(([r, c]) => { g.fillStyle = c; g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill(); });
+        for (const [dx, dy] of G.stuck) drawStar(x + dx, cy + dy, 0.6);
+      },
+      draw(G) { if (G.sx != null && G.phase === 'throw') drawStar(G.sx, G.sy, T * 20); } },
+
+    clone: { name: '分身術', n: [1, 1], w: 2, scenes: ['ninja'],
+      setup(G) { go(G.members[0], G.x); G.offs = []; phase(G, 'gather'); },
+      step(G) {
+        const m = G.members[0], k = G.t - G.t0;
+        if (G.phase === 'gather') { if (!ready(G)) return; pose(m, poseSign(), 1); line(G, m, '分身術！', 1.4); phase(G, 'sign'); return; }
+        if (G.phase === 'sign') {
+          if (k > 1 && !G.offs.length) {
+            G.offs = [-55, 55]; for (const o of G.offs) smoke(m.x + o, FLOOR);
+            narrate('🥷 ' + numOf(m) + ' 號使出分身術，一下子變成三個人！');
+            pose(m, posePoint(), 1);
+          }
+          if (k > 3.6) { for (const o of G.offs) smoke(m.x + o, FLOOR); G.offs = []; phase(G, 'done'); }
+          return;
+        }
+        if (k > 0.8) endGroup(G);
+      },
+      draw(G) {
+        const m = G.members[0];
+        for (const o of G.offs) {
+          g.save(); g.globalAlpha = 0.45;
+          const c = Object.assign({}, m, { x: m.x + o, say: null, tag: null, item: null, f: o < 0 ? -1 : 1 });
+          drawAgent(c);
+          g.restore();
+        }
+      } },
+  });
+  function drawStar(x, y, rot) {
+    g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = '#c9ccd8'; g.strokeStyle = INK; g.lineWidth = 1;
+    g.beginPath();
+    for (let i = 0; i < 8; i++) { const r = i % 2 ? 2 : 7, an = i * Math.PI / 4; g.lineTo(Math.cos(an) * r, Math.sin(an) * r); }
+    g.closePath(); g.fill(); g.stroke(); g.restore();
+  }
+
   // ---------- 骷髏 ----------
   function rebuildSkulls(puff) {
     const O = S.overdue;
@@ -963,35 +2009,87 @@
   }
   function skullIdle(a) { if (a.home) setAct(a, 'skullHome'); else setAct(a, 'idle', { dur: 0.2 }); }
 
+  // 可以出去抓人的骷髏：在骷髏區、已經拼好（3 塊）、不是小兵
+  const freeHunters = () => skulls().filter(s => s.parts === 3 && s.home && !s.minion && !s.dead).sort((x, y) => y.s - x.s);
+  const canPlayBusy = k => !BUSY_ACTS.includes(k.act.type) || k.act.type === 'play';
+  function beginHunt(h, v, o = {}) {
+    const H_ = { hunter: h, v, t: 0, raid: !!o.raid, dropX: pit.x1 + 24 + (o.raid ? rand(-6, 46) : 0) };
+    S.hunts.push(H_);
+    h.home = false;
+    v.goal = null; v.fear = true; v.carry = null; v.rot = 0; v.phone = false;
+    if (o.brave) setAct(v, 'taunt', { tx: kidMaxX() - 8, phase: 0 });
+    else if (!v.air && v.act.type !== 'climb') setAct(v, 'freeze');
+    v.item = null;
+    chase(h, v);
+    return H_;
+  }
+  // 被抓的人旁邊的人嚇得逃跑（骷髏大軍時全場都逃）；只有一個人喊，不然太吵
+  // 離得遠、正在玩遊戲的人繼續玩
+  function scatter(victims, all) {
+    let shouted = false;
+    const near = k => victims.some(v => Math.abs(v.x - k.x) < (k.group ? 100 : 320));
+    for (const k of kids()) if (!victims.includes(k) && !k.air && (all || near(k)) && !['stairRide', 'push', 'puppet', 'greet'].includes(k.act.type) && Math.random() < 0.7) {
+      k.goal = null; k.carry = null;
+      if (!shouted) shouted = say(k, pick(['骷髏來了！', '快逃！', '哇啊！', '大家快跑！']), 1.2, 1);
+      const cs = surf(k.surf); setAct(k, 'flee', { tx: rand(cs.x1, cs.floor ? kidMaxX() : cs.x2) });
+    }
+  }
   function startHunt(brave, victimNum) {
     if (S.hunting) return false;
-    const hunter = skulls().filter(s => s.parts === 3).sort((x, y) => y.s - x.s)[0];
-    const target = victimNum != null ? kids().find(k => k.num === victimNum && !k.air && !k.cell && !BUSY_ACTS.includes(k.act.type)) : null;
-    if (victimNum != null && !target) return false;
-    if (!hunter) {
-      // 骷髏還沒拼好：直接被拖進綠池
-      if (target) { target.sinkMsg = '💀 ' + tagOf(target.num) + '有作業逾期，被拖進綠池，關進籠子了！補交完就能出來'; target.goal = null; restoreCell(target, true); sinkIntoPool(target); return true; }
-      return false;
+    const hunters = freeHunters();
+    if (victimNum != null) {
+      // 新出現逾期的人：一隻骷髏專門去抓他
+      const target = kids().find(k => k.num === victimNum && !k.air && !k.cell && canPlayBusy(k));
+      if (!target) return false;
+      if (!hunters.length) {
+        // 骷髏還沒拼好：直接被拖進綠池
+        if (target.act.type === 'play') setAct(target, 'idle');
+        target.sinkMsg = '💀 ' + tagOf(target.num) + '有作業逾期，被拖進綠池，關進籠子了！補交完就能出來'; target.goal = null; restoreCell(target, true); sinkIntoPool(target); return true;
+      }
+      banner('💀 ' + tagOf(target.num) + '有作業逾期，骷髏爬出來抓人了！');
+      beginHunt(hunters[0], target);
+      scatter([target]);
+      say(hunters[0], '嘿嘿嘿…', 1.6);
+      return true;
     }
-    const victims = target ? [target] : kids();
-    if (!victims.length) return false;
-    // 有時候（或按按鈕時）會有人裝勇敢跑去挑釁，結果被抓
-    const braves = victims.filter(k => k.surf === 'floor' && !k.air && !k.cell && !BUSY_ACTS.includes(k.act.type));
-    const isBrave = !target && braves.length && (brave || Math.random() < 0.4);
-    const v = isBrave ? braves.sort((p, q) => q.x - p.x)[Math.floor(Math.random() * Math.min(3, braves.length))] : pick(victims);
-    S.hunting = { hunter, v, t: 0 };
-    hunter.home = false;
-    v.goal = null; v.fear = true; v.carry = null; v.rot = 0; v.phone = false; v.item = null;
-    if (isBrave) {
-      banner('😤 ' + String(v.num).padStart(2, '0') + ' 號裝勇敢，跑去挑釁骷髏…');
-      setAct(v, 'taunt', { tx: kidMaxX() - 8, phase: 0 });
-    } else {
-      banner(target ? '💀 ' + tagOf(v.num) + '有作業逾期，骷髏爬出來抓人了！' : '💀 骷髏爬出來了！它要抓 ' + tagOf(v.num) + '！');
-      if (!v.air && v.act.type !== 'climb') setAct(v, 'freeze');
+    if (!hunters.length) return false;
+    const pool = kids();
+    if (!pool.length) return false;
+    // 有幾隻拼好的骷髏，就同時出去抓幾個人；有時候有人裝勇敢跑去挑釁
+    const braves = pool.filter(k => k.surf === 'floor' && !k.air && !k.cell && canPlayBusy(k));
+    const isBrave = braves.length > 0 && (brave || Math.random() < 0.3);
+    const victims = [];
+    if (isBrave) victims.push(braves.sort((p, q) => q.x - p.x)[Math.floor(Math.random() * Math.min(3, braves.length))]);
+    const rest = pool.filter(k => !victims.includes(k)).sort(() => Math.random() - 0.5);
+    if (Math.random() < 0.4) rest.sort((p, q) => (p.surf !== 'floor') - (q.surf !== 'floor'));   // 站在卡片上的人排到最後（先被挑）
+    while (victims.length < hunters.length && rest.length) victims.push(rest.pop());
+    victims.forEach((v, i) => beginHunt(hunters[i], v, { brave: isBrave && i === 0 }));
+    if (isBrave) banner('😤 ' + tagOf(victims[0].num) + '裝勇敢，跑去挑釁骷髏…');
+    if (victims.length > 1) banner('💀 ' + victims.length + ' 隻骷髏一起爬出來了！要抓 ' + victims.map(v => String(v.num).padStart(2, '0')).join('、') + ' 號！');
+    else if (!isBrave) banner('💀 骷髏爬出來了！它要抓 ' + tagOf(victims[0].num) + '！');
+    scatter(victims);
+    say(hunters[0], '嘿嘿嘿…', 1.6);
+    return true;
+  }
+  // 骷髏大軍：偶爾從綠池爬出一群小骷髏，一次抓 7、8 個人（沒有缺交的過一下就會溜出來）
+  function startRaid() {
+    if (S.hunting || S.defeated || !skulls().length) return false;
+    const pool = kids().sort(() => Math.random() - 0.5);
+    const n = Math.min(Math.random() < 0.5 ? 7 : 8, pool.length - 3);
+    if (n < 4) return false;
+    const victims = pool.slice(0, n);
+    const hunters = freeHunters().slice(0, n);
+    while (hunters.length < n) {
+      const m = makeAgent('skull', rand(pit.x1 + 20, pit.x2 - 20), { tier: 'small', parts: 3 });
+      m.minion = true; m.home = false; m.y = FLOOR; m.surf = 'floor';
+      agents.push(m); hunters.push(m);
+      for (let k = 0; k < 6; k++) parts.push({ kind: 'puff', x: m.x + rand(-14, 14), y: FLOOR - rand(4, 40), vx: rand(-20, 20), vy: rand(-50, -10), life: 0.9, max: 0.9 });
     }
-    for (const k of kids()) if (k !== v && !k.air && !['stairRide', 'push', 'puppet', 'greet'].includes(k.act.type) && Math.random() < 0.7) { k.goal = null; k.carry = null; say(k, pick(['骷髏來了！', '快逃！', '哇啊！']), 1.2); const cs = surf(k.surf); setAct(k, 'flee', { tx: rand(cs.x1, cs.floor ? kidMaxX() : cs.x2) }); }
-    say(hunter, '嘿嘿嘿…', 1.6);
-    chase(hunter, v);
+    S.raid = { n, caught: 0 };
+    victims.forEach((v, i) => beginHunt(hunters[i], v, { raid: true }));
+    banner('☠️ 骷髏大軍從綠池爬出來了！一次要抓 ' + n + ' 個人！');
+    narrate('☠️ 骷髏大軍出動！' + victims.map(v => String(v.num).padStart(2, '0')).join('、') + ' 號快逃啊！', true);
+    scatter(victims, true);
     return true;
   }
   // 新出現逾期的人排隊被抓
@@ -1015,36 +2113,57 @@
     if (v.air || v.act.type === 'climb') { setAct(h, 'idle', { dur: 0.3 }); return; }
     if (!['freeze', 'grabbed', 'taunt'].includes(v.act.type)) setAct(v, 'freeze');
     travel(h, v.surf, v.x, 'grab');
-    h.goal.run = true;
+    if (h.goal) h.goal.run = true;
     h.act.tx = v.x;
   }
-  function updateHunt(dt) {
-    const H_ = S.hunting; H_.t += dt;
+  // 抓完回骷髏區；小兵回到綠池就消失
+  function sendHome(h) {
+    if (h.minion) travel(h, 'floor', rand(pit.x1 + 30, pit.x2 - 30), 'vanish');
+    else { h.home = true; travel(h, 'floor', rand(pit.x1 + 30, pit.x2 - 30), 'home'); }
+  }
+  function endHunt(H_) {
+    S.hunts = S.hunts.filter(x => x !== H_);
+    if (S.hunts.length) return;
+    for (const k of kids()) { k.fear = false; if (k.act.type === 'flee' || k.act.type === 'freeze') setAct(k, 'idle', { dur: rand(0.2, 1) }); }
+    if (S.raid) { if (S.raid.caught) banner('😱 骷髏大軍抓走了 ' + S.raid.caught + ' 個人！沒有缺交的等一下就會溜出來'); S.raid = null; }
+    setTimeout(nextHunt, 2000);
+  }
+  function updateHunts(dt) { for (const H_ of [...S.hunts]) stepHunt(H_, dt); }
+  function stepHunt(H_, dt) {
+    H_.t += dt;
     const { hunter: h, v } = H_;
+    if (h.gone) {
+      // 骷髏被大熊老師打散：抓到一半的人掉下來
+      if (v.act.type === 'grabbed') { v.air = true; v.vx = 0; v.vy = 0; setAct(v, 'fall'); }
+      v.fear = false; endHunt(H_); return;
+    }
     if (!H_.caught) {
+      if (v.gone) { sendHome(h); endHunt(H_); return; }       // 自己掉進綠池了
       if (h.act.type === 'idle' && !h.goal) chase(h, v);
       if (h.surf === v.surf && !h.air && !v.air && Math.abs(h.x - v.x) < 26 * h.s / 1.5) {
         H_.caught = true; h.goal = null; h.f = Math.sign(v.x - h.x) || 1;
         setAct(v, 'grabbed', { by: h });
-        say(v, '救命～～', 1.6);
-        say(h, '抓到了！', 1.2);
-        travel(h, 'floor', pit.x1 + 24, 'home');
+        say(v, '救命～～', 1.6, H_.raid ? 1 : 2);
+        if (!H_.raid) say(h, '抓到了！', 1.2);
+        travel(h, 'floor', H_.dropX, 'home');
       } else if (h.act.type === 'idle' && h.act.t > 0.3) chase(h, v);
-    } else if (!H_.thrown && h.surf === 'floor' && Math.abs(h.x - (pit.x1 + 24)) < 8 && !h.air) {
+      if (H_.t > 30 && !H_.caught) {
+        v.fear = false; if (['freeze', 'taunt'].includes(v.act.type)) setAct(v, 'idle');
+        sendHome(h); endHunt(H_);
+      }
+    } else if (!H_.thrown && h.surf === 'floor' && Math.abs(h.x - H_.dropX) < 8 && !h.air) {
       // 丟進綠池，之後在籠子裡重生
       H_.thrown = true;
-      const T0 = 0.8, cx = (pit.x1 + pit.x2) / 2 + 20;
+      const T0 = 0.8, cx = (pit.x1 + pit.x2) / 2 + 20 + (H_.raid ? rand(-30, 30) : 0);
       v.sinkMsg = '😱 ' + tagOf(v.num) + '被骷髏丟進綠池，關進籠子了！' + (DATA && DATA.overdue.has(v.num) ? '補交完就能出來' : '');
+      v.quietSink = H_.raid;
+      if (H_.raid && S.raid) S.raid.caught++;
       v.air = true; v.vx = (cx - v.x) / T0; v.vy = (FLOOR - v.y - 0.5 * GRAV * T0 * T0) / T0;
       setAct(v, 'thrown');
-      say(h, '下去吧！', 1.2);
+      if (!H_.raid) say(h, '下去吧！', 1.2);
     } else if (H_.thrown && v.gone) {
-      h.home = true; travel(h, 'floor', rand(pit.x1 + 30, pit.x2 - 30), 'home');
-      S.hunting = null;
-      for (const k of kids()) { k.fear = false; if (k.act.type === 'flee' || k.act.type === 'freeze') setAct(k, 'idle', { dur: rand(0.2, 1) }); }
-      setTimeout(nextHunt, 2000);
-    }
-    if (H_.t > 30 && !H_.caught) { S.hunting = null; v.fear = false; setAct(v, 'idle'); h.home = true; travel(h, 'floor', rand(pit.x1 + 30, pit.x2 - 30)); }
+      sendHome(h); endHunt(H_);
+    } else if (H_.t > 45) { sendHome(h); endHunt(H_); }
   }
 
   // ---------- 拔號碼格（只在電腦、滑鼠停 20 秒以上） ----------
@@ -1108,7 +2227,7 @@
     setAct(a, 'cheer', { dur: 0.8 });
     if (owed) {
       say(a, '嘘…藏起來…', 1.8);
-      // 彩蛋：拔到自己欠交的格子，被大熊老師發現
+      // 彩蛋：拔到自己還沒交的格子，被大熊老師發現
       a.cell.until = T + 3.2;
       setTimeout(() => { const b2 = bear(); if (b2 && a.cell && !a.gone) { say(b2, String(a.num).padStart(2, '0') + ' 號！放回去！', 1.8); say(a, '好啦…', 1.4); goReturn(a, true); } }, 2600);
     } else say(a, pick(['我的號碼！', '拔下來囉～', '嘿嘿']), 1.4);
@@ -1154,7 +2273,7 @@
     }
   }
   const tagOf = num => String(num).padStart(2, '0') + ' 號';
-  // 某個座號的逾期全部補交完：從籠子放出來；原本欠最多的人是英雄
+  // 某個座號的逾期全部補交完：從籠子放出來；原本逾期最多的人是英雄
   function releaseSeat(num, hero, n) {
     const i = S.caged.indexOf(num);
     if (i < 0) return;
@@ -1162,7 +2281,7 @@
     const k = spawnFromCage(num);
     if (hero) {
       say(k, '我補交完了！', 2);
-      banner('🦸 ' + tagOf(num) + '把欠的 ' + n + ' 份都補交完，自己衝出籠子！');
+      banner('🦸 ' + tagOf(num) + '把逾期的 ' + n + ' 份作業都補交完，自己衝出籠子！');
       fireworks(n >= 3 ? 6 : 3);
       for (const o of kids()) if (o !== k && !o.air && STANDING.includes(o.act.type) && Math.random() < 0.6) setAct(o, 'cheer', { dur: 1.6 });
       bearAttack();
@@ -1198,24 +2317,36 @@
   }
 
   // ---------- 籠子 ----------
+  let freeing = 0, freedNums = [], freedTimer = 0;
   function intoCage(a) {
     restoreCell(a, true);
     a.gone = true;
     agents = agents.filter(x => x !== a);
     if (a.kind === 'kid') {
       S.caged.push(a.num);
-      if (!DATA || !DATA.overdue.has(a.num)) setTimeout(() => {
-        const i = S.caged.indexOf(a.num); if (i < 0 || (DATA && DATA.overdue.has(a.num))) return;
-        S.caged.splice(i, 1);
-        const k = spawnFromCage(a.num); say(k, '呼～出來了', 1.4);
-        banner('😮‍💨 ' + tagOf(a.num) + '沒有欠交，從籠子出來了～');
-      }, 7000);
+      // 沒有缺交的人過一下就溜出來；一次被抓很多人時一個一個出來，橫幅合併成一則
+      if (!DATA || !DATA.overdue.has(a.num)) {
+        const wait = 7000 + freeing * 900; freeing++;
+        setTimeout(() => {
+          freeing = Math.max(0, freeing - 1);
+          const i = S.caged.indexOf(a.num); if (!running || i < 0 || (DATA && DATA.overdue.has(a.num))) return;
+          S.caged.splice(i, 1);
+          const k = spawnFromCage(a.num); say(k, '呼～出來了', 1.4);
+          freedNums.push(a.num);
+          clearTimeout(freedTimer);
+          freedTimer = setTimeout(() => {
+            banner('😮‍💨 ' + freedNums.map(n => String(n).padStart(2, '0')).join('、') + ' 號沒有缺交，從籠子溜出來了～');
+            freedNums = [];
+          }, 1300);
+        }, wait);
+      }
     }
     for (let k = 0; k < 8; k++) parts.push({ kind: 'puff', grey: true, x: rand(cage.x1 + 10, cage.x2 - 10), y: FLOOR - rand(10, 60), vx: rand(-20, 20), vy: rand(-40, -10), life: 0.8, max: 0.8 });
     chips();
   }
   // ---------- 特效 ----------
   function dust(x, y, n) { for (let k = 0; k < n; k++) parts.push({ kind: 'dust', x: x + rand(-10, 10), y, vx: rand(-60, 60), vy: rand(-50, -5), life: 0.6, max: 0.6 }); }
+  function smoke(x, y) { for (let k = 0; k < 9; k++) parts.push({ kind: 'puff', grey: true, x: x + rand(-14, 14), y: y - rand(4, 60), vx: rand(-40, 40), vy: rand(-40, 10), life: 0.6, max: 0.6 }); }
   function sparkle(x, y) { parts.push({ kind: 'spark', x, y, vx: 0, vy: 0, life: 0.6, max: 0.6 }); }
   function killSkull(s) {
     if (s.dead) return;
@@ -1266,6 +2397,7 @@
   function poly(pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.stroke(); }
 
   function drawAgent(a) {
+    if (a.hidden) { a.bubbleAt = null; return; }
     const p = a.p || P({});
     const isBear = a.kind === 'bear';
     const j = joints(p, a.s, a.f, isBear);
@@ -1316,7 +2448,8 @@
     }
     if (a.item) { g.font = (16 * s / 1.5 + 4) + 'px ' + FONT; g.textAlign = 'center'; g.fillText(a.item, a.j.rH[0] + a.f * 4, a.j.rH[1] + 6); g.textAlign = 'left'; }
     if (isBear && a.act.type !== 'grabbed') { g.font = '900 13px ' + FONT; g.textAlign = 'center'; g.fillStyle = '#f6c344'; g.strokeStyle = INK; g.lineWidth = 3; g.strokeText('大熊老師', a.j.head[0], a.j.head[1] - 18 * s); g.fillText('大熊老師', a.j.head[0], a.j.head[1] - 18 * s); g.textAlign = 'left'; }
-    if (a.say && a.say.until > T) bubble(a.j.head[0], a.j.head[1] - (isBear ? 34 : a.kind === 'skull' ? 22 : 14) * s, a.say.text);
+    if (a.tag) { g.font = '900 12px ' + FONT; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = INK; g.fillStyle = a.tag === '鬼' ? '#ff4d5e' : '#f6c344'; const ty = a.j.head[1] - 12 * s; g.strokeText(a.tag, a.j.head[0], ty); g.fillText(a.tag, a.j.head[0], ty); g.textAlign = 'left'; }
+    a.bubbleAt = a.say && a.say.until > T ? [a.j.head[0], a.j.head[1] - (isBear ? 34 : a.kind === 'skull' ? 22 : a.tag ? 26 : 14) * s] : null;
   }
 
   function drawKid(a, j, s) {
@@ -1326,6 +2459,17 @@
     poly([j.rF, j.rK, j.hip]); poly([j.rH, j.rE, j.neck]);
     const r = 7.5 * s;
     g.beginPath(); g.arc(j.head[0], j.head[1], r, 0, Math.PI * 2); g.fill();
+    if (S.scene === 'ninja') {
+      // 忍者頭巾：一條紅布綁在額頭，後面兩條布尾巴飄
+      const f = a.f || 1, hy = j.head[1] - 3.2 * s, bx = j.head[0] - f * r * 0.9, wave = Math.sin(T * 9 + (a.num || 0)) * 2 * s;
+      g.save(); g.shadowBlur = 0;
+      g.strokeStyle = '#e63946'; g.lineWidth = 2.6 * s; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(j.head[0] - r * 0.95, hy); g.lineTo(j.head[0] + r * 0.95, hy); g.stroke();
+      g.lineWidth = 1.8 * s;
+      g.beginPath(); g.moveTo(bx, hy); g.lineTo(bx - f * 9 * s, hy + 2 * s + wave); g.stroke();
+      g.beginPath(); g.moveTo(bx, hy); g.lineTo(bx - f * 7 * s, hy + 5 * s - wave); g.stroke();
+      g.restore();
+    }
     // 頭上的白色座號（翻跟斗時也跟著轉）
     g.fillStyle = '#ffffff';
     g.font = '900 ' + (a.num >= 10 ? 8.4 : 9.5) * s + 'px ' + FONT;
@@ -1547,6 +2691,29 @@
     g.fillStyle = INK; g.fillText(text, bx + 8, y - 6.5);
   }
 
+  // 所有泡泡最後一起畫：重要的先放，位置重疊就往上移，真的放不下的閒聊就不畫
+  function drawBubbles() {
+    const list = agents.filter(a => a.bubbleAt && a.say && a.say.until > T)
+      .sort((x, y) => (y.say.lv || 0) - (x.say.lv || 0) || x.say.until - y.say.until);
+    const placed = [];
+    g.font = '700 13px ' + FONT;
+    for (const a of list) {
+      const w = g.measureText(a.say.text).width + 16;
+      const [ax, ay] = a.bubbleAt;
+      let r = null, k = 0;
+      for (; k < 4 && !r; k++) {
+        const c = [clamp(ax - w / 2, 4, W - w - 4), ay - 22 - k * 26, w, 22];
+        if (!placed.some(q => c[0] < q[0] + q[2] + 4 && q[0] < c[0] + c[2] + 4 && c[1] < q[1] + q[3] + 2 && q[1] < c[1] + c[3] + 2)) r = c;
+      }
+      if (!r) { if ((a.say.lv || 0) < 2) continue; r = [clamp(ax - w / 2, 4, W - w - 4), ay - 22, w, 22]; k = 1; }
+      placed.push(r);
+      if (k > 1) { g.strokeStyle = '#ffffff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(ax, ay - 2); g.lineTo(clamp(ax, r[0] + 8, r[0] + r[2] - 8), r[1] + 22); g.stroke(); }
+      g.fillStyle = '#ffffff'; g.strokeStyle = INK; g.lineWidth = 1.5;
+      roundRect(r[0], r[1], r[2], 22, 9); g.fill(); g.stroke();
+      g.fillStyle = INK; g.fillText(a.say.text, r[0] + 8, r[1] + 15.5);
+    }
+  }
+
   function drawWorld() {
     g.clearRect(0, 0, W, H);
     // 地面線
@@ -1556,6 +2723,8 @@
     const colors = ['#e63946', '#f6c344', '#4cc9f0', '#46d22e', '#9b5de5', '#f4a261'];
     for (let i = 0; i < 6; i++) { g.fillStyle = colors[i]; g.strokeStyle = INK; g.lineWidth = 2; roundRect(pile.x - 30 + (i % 3) * 28 + (i > 2 ? 14 : 0), FLOOR - 28 - (i > 2 ? 28 : 0), 26, 26, 4); g.fill(); g.stroke(); }
     g.font = '700 12px ' + FONT; g.fillStyle = '#6c6a80'; g.fillText('積木', pile.x - 10, FLOOR + 22);
+    drawScene();
+    for (const G of groups) if (G.def.under) G.def.under(G);
     drawStairs();
     for (let i = 0; i < S.tower; i++) { g.fillStyle = (S.towerColors || [])[i] || '#f6c344'; g.strokeStyle = INK; g.lineWidth = 2; roundRect(towerX - 14, FLOOR - (i + 1) * 28, 28, 28, 4); g.fill(); g.stroke(); }
     // 右下角：骷髏區
@@ -1627,6 +2796,8 @@
       else if (p.kind === 'dust') { g.fillStyle = 'rgba(160,160,180,' + (0.45 * a) + ')'; g.beginPath(); g.arc(p.x, p.y, 2 + (1 - a) * 6, 0, Math.PI * 2); g.fill(); }
       else if (p.kind === 'food') { g.font = '22px ' + FONT; g.fillText(p.ch, p.x - 11, p.y); }
       else if (p.kind === 'note') { g.fillStyle = '#f6c344'; g.font = '900 16px ' + FONT; g.fillText('♪', p.x, p.y); }
+      else if (p.kind === 'plane') { g.font = '18px ' + FONT; g.fillText('✈️', p.x - 9, p.y); }
+      else if (p.kind === 'snow') { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(p.x, p.y, 2.5, 0, Math.PI * 2); g.fill(); }
       else if (p.kind === 'crumb') { g.fillStyle = '#d4a056'; g.fillRect(p.x, p.y, 3, 3); }
       else if (p.kind === 'z') { g.fillStyle = '#c9c9d6'; g.font = '900 14px ' + FONT; g.fillText('Z', p.x, p.y); }
       else if (p.kind === 'sweat') { g.fillStyle = '#4cc9f0'; g.beginPath(); g.arc(p.x, p.y, 3, 0, Math.PI * 2); g.fill(); }
@@ -1647,7 +2818,8 @@
       if (p.kind === 'food') { const k = 1 - p.life / p.max, to = p.to; const mouth = to.j ? to.j.head : [to.x, to.y - 100]; const mx = mouth[0] + to.f * 12, my = mouth[1] + 4; p.x += (mx - p.x) * k * 0.35; p.y += (my - p.y) * k * 0.35; continue; }
       if (p.kind === 'cellfly') continue;
       if (p.kind === 'fw') { p.vy += 220 * dt; p.vx *= 0.97; p.vy *= 0.97; }
-      if (p.kind === 'bone' || p.kind === 'block' || p.kind === 'drop' || p.kind === 'crumb') p.vy += GRAV * 0.8 * dt;
+      if (p.kind === 'bone' || p.kind === 'block' || p.kind === 'drop' || p.kind === 'crumb' || p.kind === 'snow') p.vy += GRAV * 0.8 * dt;
+      if (p.kind === 'plane') { p.vy = 18 + Math.sin(p.life * 4) * 30; }
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.vr) p.rot += p.vr * dt;
       if ((p.kind === 'bone' || p.kind === 'block') && p.y > FLOOR - 6) { p.y = FLOOR - 6; p.vy *= -0.3; p.vx *= 0.6; p.vr *= 0.5; }
@@ -1679,19 +2851,22 @@
     // 任何一格出錯都只跳過那一格，動畫不會整個停住
     const safe = (fn, label) => { try { fn(); } catch (e) { if (!safe.seen) { safe.seen = true; console.error('動畫錯誤（' + label + '）', e && e.stack || e); } } };
     agents = agents.filter(a => !a.gone);
+    safe(() => stepGroups(dt), 'groups');
     for (const a of [...agents]) safe(() => update(a, dt), 'update ' + a.kind + ' ' + a.act.type);
-    if (S.hunting) safe(() => updateHunt(dt), 'hunt');
+    if (S.hunts.length) safe(() => updateHunts(dt), 'hunt');
     safe(() => updateParts(dt), 'parts');
     safe(drawWorld, 'world');
     const order = [...agents].sort((x, y) => (x.kind === 'skull') - (y.kind === 'skull'));
     for (const a of order) safe(() => { g.save(); drawAgent(a); g.restore(); }, 'draw ' + a.kind + ' ' + a.act.type + ' s=' + a.s);
+    safe(drawGroups, 'drawGroups');
     safe(drawParts, 'drawParts');
+    safe(drawBubbles, 'bubbles');
     requestAnimationFrame(frame);
   }
 
   function chips() { /* 正式網站不顯示狀態列 */ }
   function setup() {
-    agents = []; parts = []; balls = [];
+    agents = []; parts = []; balls = []; groups = [];
     S.caged = [...DATA.overdue.keys()].sort((a, b) => a - b);
     for (let num = 1; num <= DATA.count; num++) if (!DATA.overdue.has(num)) agents.push(makeAgent('kid', rand(140, kidMaxX()), { num }));
     agents.push(makeAgent('bear', W * 0.45));
@@ -1720,19 +2895,27 @@
     nextHunt();
     if (done.length) celebrate(done);
   }
-  window.NiceBattle = { sync };
+  window.NiceBattle = { sync, scene: id => setScene(id), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }) };
 
-  // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒欠交的會放回來）
-  // 骷髏大約每 1～2 分鐘走出骷髏區抓一個人；沒欠交的人被抓進籠子，過一下會自己跑出來
-  let nextClumsy = 90, nextRandomHunt = rand(40, 80);
+  // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒有缺交的會放回來）
+  // 骷髏大約每 15～30 秒走出骷髏區抓一個人；沒有缺交的人被抓進籠子，過一下會自己跑出來
+  // 骷髏大軍：第一次大約 2 分鐘後，之後每 3～5 分鐘一次
+  // 場景每 4 分鐘換一次（操場 → 忍者村 → 雪地）；骷髏大約每 35～60 秒出來散步
+  let nextClumsy = 90, nextRandomHunt = rand(10, 20), nextRaid = rand(100, 160), nextScene = 240, nextPatrol = rand(25, 40);
   setInterval(() => {
     if (!running) return;
+    if (Math.random() < 0.7) startActivity();
+    if (T > nextScene && !S.hunting) { setScene(SCENES[(SCENES.findIndex(x => x.id === S.scene) + 1) % SCENES.length].id); nextScene = T + 240; }
+    if (T > nextPatrol) nextPatrol = T + (skullPatrol() ? rand(35, 60) : 8);
+    patrolScare();
+    if (!S.hunting && T - narrAt > 25 && !narrQueue.length) narrate(pick(AMBIENT));
+    if (T > nextRaid) nextRaid = T + (startRaid() ? rand(180, 300) : 15);
     if (T > nextClumsy) { if (clumsy()) nextClumsy = T + rand(100, 160); else nextClumsy = T + 10; }
     if (S.defeated && T - (S.defeatedAt || 0) > 300 && !S.hunting) { S.defeated = false; rebuildSkulls(true); if (skulls().length) banner('💀 骷髏又拼回來了！'); }
     if (T > nextRandomHunt) {
-      // 沒有完整的骷髏（逾期不到 3 份或剛被打散）、有人正在被抓：10 秒後再試
+      // 沒有完整的骷髏（逾期不到 3 份或剛被打散）、有人正在被抓：3 秒後再試
       const ok = !S.huntQueue.length && !S.hunting && startHunt();
-      nextRandomHunt = T + (ok ? rand(60, 120) : 10);
+      nextRandomHunt = T + (ok ? rand(15, 30) : 3);
     }
   }, 2000);
 
@@ -1740,6 +2923,17 @@
   const baseArrive = onArrive;
   onArrive = function (a) {
     if (a.kind === 'bear' && a.goal && a.goal.then === 'spike') { a.goal = null; a.f = 1; startSkill(a, 'spike', true); return; }
+    if (a.kind === 'skull' && a.goal && a.goal.then === 'patrolEnd') {
+      a.goal = null; a.f = Math.random() < 0.5 ? 1 : -1; setAct(a, 'idle', { dur: 0.2 });
+      say(a, pick(['嘿嘿…有人嗎？', '作業交了沒…', '咔咔咔…']), 1.6);
+      setTimeout(() => endPatrol(a), 2600);
+      return;
+    }
+    if (a.kind === 'skull' && a.goal && a.goal.then === 'vanish') {
+      a.goal = null; a.gone = true;
+      for (let k = 0; k < 8; k++) parts.push({ kind: 'puff', x: a.x + rand(-14, 14), y: FLOOR - rand(4, 40), vx: rand(-20, 20), vy: rand(-50, -10), life: 0.9, max: 0.9 });
+      return;
+    }
     if (a.kind === 'skull' && a.goal && a.goal.then === 'home') { a.goal = null; if (a.home) setAct(a, 'skullHome'); else setAct(a, 'idle', { dur: 0.1 }); return; }
     if (a.kind === 'skull' && a.goal && a.goal.then === 'grab') { a.goal = null; setAct(a, 'idle', { dur: 0.05 }); return; }
     if (a.kind === 'kid' && a.goal && a.goal.then === 'pull') { a.goal = null; doPull(a); return; }
@@ -1773,7 +2967,7 @@
     ground.classList.toggle('battle-on', on);
     cv.style.display = on ? 'block' : 'none';
     if (!on) {
-      if (running) { recallAll(); running = false; agents = []; parts = []; balls = []; S.hunting = null; S.huntQueue = []; }
+      if (running) { recallAll(); running = false; agents = []; parts = []; balls = []; S.hunting = null; S.raid = null; S.patrol = null; S.huntQueue = []; groups = []; }
       return;
     }
     if (!DATA) return;              // 等看板資料讀到再開始
