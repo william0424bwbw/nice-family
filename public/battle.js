@@ -1019,7 +1019,7 @@
   const numOf = m => String(m.num).padStart(2, '0');
   const tagsOf = ms => ms.map(numOf).join('、') + ' 號';
   const pgLabel = ground.querySelector('.pg-label');
-  let narrTimer = 0, narrAt = -99, narrNext = 0;
+  let narrTimer = 0, narrAt = -99, narrNext = 0, sceneSel = null;
   const narrQueue = [];
   // 旁白：一次一行，至少停 4 秒才換；太密的排隊（重要的事直接插隊）
   function narrate(text, important) {
@@ -1531,7 +1531,7 @@
   }
   function drawGroups() { for (const G of groups) if (G.def.draw) G.def.draw(G); }
 
-  // ---------- 場景：一般 → 忍者村 → 海底 → 雪地 → 冰與火（每 4 分鐘換一次） ----------
+  // ---------- 場景：一般、忍者村、海底、雪地、冰與火（老師手動選；想加新場景就往 SCENES 加一筆） ----------
   // 換場景時整個看板的背景、作業卡片、號碼格也跟著換裝（index.html 用 <html data-scene> 切換 CSS）
   const SCENES = [
     { id: 'playground', label: '一 般', banner: '🏫 回到平常的樣子囉！' },
@@ -1546,10 +1546,12 @@
     setTimeout(() => { if (running) measure(); }, 450);     // 卡片換裝後高度會變，重新量站的位置
   }
   const sceneLabel = () => (SCENES.find(x => x.id === S.scene) || SCENES[0]).label;
-  function setScene(id) {
+  function setScene(id, quiet) {
     if (!SCENES.some(x => x.id === id) || id === S.scene) return;
     S.scene = id;
     applySceneDom();
+    if (sceneSel) sceneSel.value = id;
+    if (quiet) { for (const G of groups) if (G.def.scenes && !G.def.scenes.includes(id)) endGroup(G); if (pgLabel && !pgLabel.classList.contains('narr')) pgLabel.textContent = sceneLabel(); return; }
     if (id !== 'snow') S.snowmen = [];
     // 只屬於別的場景的活動（雪仗、射飛鏢…）收掉
     for (const G of groups) if (G.def.scenes && !G.def.scenes.includes(id)) endGroup(G);
@@ -3826,17 +3828,16 @@
     nextHunt();
     if (done.length) celebrate(done);
   }
-  window.NiceBattle = { sync, dragon: () => startDragon(), scene: id => setScene(id), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }) };
+  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }) };
 
   // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒有缺交的會放回來）
   // 骷髏大約每 15～30 秒走出骷髏區抓一個人；沒有缺交的人被抓進籠子，過一下會自己跑出來
   // 骷髏大軍：第一次大約 2 分鐘後，之後每 3～5 分鐘一次
-  // 場景每 4 分鐘換一次（一般 → 忍者村 → 海底 → 雪地 → 冰與火）；骷髏大約每 35～60 秒出來散步
-  let nextDragon = 0, nextClumsy = 90, nextRandomHunt = rand(10, 20), nextRaid = rand(100, 160), nextScene = 240, nextPatrol = rand(25, 40);
+  // 場景由老師在操場左下角的選單手動切換（存在雲端，全班螢幕跟著換）；骷髏大約每 35～60 秒出來散步
+  let nextDragon = 0, nextClumsy = 90, nextRandomHunt = rand(10, 20), nextRaid = rand(100, 160), nextPatrol = rand(25, 40);
   setInterval(() => {
     if (!running) return;
     if (Math.random() < 0.7) startActivity();
-    if (T > nextScene && !S.hunting) { setScene(SCENES[(SCENES.findIndex(x => x.id === S.scene) + 1) % SCENES.length].id); nextScene = T + 240; }
     if (T > nextPatrol) nextPatrol = T + (skullPatrol() ? rand(35, 60) : 8);
     if (S.scene === 'icefire' && T > nextDragon) nextDragon = T + (startDragon() ? rand(20, 35) : 5);
     patrolScare();
@@ -3892,6 +3893,16 @@
   toggle.type = 'button'; toggle.id = 'battleToggle';
   toggle.onclick = () => { try { localStorage.setItem(OFF_KEY, isOff() ? '0' : '1'); } catch { /* 無痕模式 */ } checkSize(); };
   ground.appendChild(toggle);
+  sceneSel = document.createElement('select');
+  sceneSel.id = 'sceneSelect'; sceneSel.className = 'teacher-only'; sceneSel.title = '切換操場場景（全班螢幕一起換）';
+  for (const sc of SCENES) { const o = document.createElement('option'); o.value = sc.id; o.textContent = '🎨 ' + sc.label.replace(/ /g, ''); sceneSel.appendChild(o); }
+  sceneSel.value = S.scene;
+  sceneSel.onchange = () => {
+    const id = sceneSel.value, prev = S.scene;
+    setScene(id);
+    if (typeof window.saveBattleScene === 'function') window.saveBattleScene(id).catch(() => { setScene(prev, true); });
+  };
+  ground.appendChild(sceneSel);
   function checkSize() {
     const small = window.innerWidth < 768;
     const on = !small && !isOff();

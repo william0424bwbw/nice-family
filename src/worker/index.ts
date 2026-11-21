@@ -206,7 +206,7 @@ function trackParam(v: unknown): Track | null {
 
 async function getBoard(db: D1Database, actor: Actor | null) {
   const [settings, cards, statuses, albums, accounts] = await db.batch([
-    db.prepare("SELECT value FROM settings WHERE key = 'student_count'"),
+    db.prepare("SELECT key, value FROM settings WHERE key IN ('student_count', 'scene')"),
     db.prepare(`SELECT id, kind, name, base_name, priority, locked, created_at, created_by, track FROM cards
                 WHERE deleted_at IS NULL ORDER BY sort_order IS NULL, sort_order, priority, created_at, id`),
     db.prepare(`SELECT s.card_id, s.seat, s.status, s.updated_by, s.updated_at, s.carried FROM card_status s
@@ -215,7 +215,8 @@ async function getBoard(db: D1Database, actor: Actor | null) {
                 WHERE deleted_at IS NULL ORDER BY created_at DESC, id DESC`),
     db.prepare('SELECT name, short FROM accounts'),
   ]);
-  const n = Number((settings.results[0] as { value?: string } | undefined)?.value) || 25;
+  const setting = new Map((settings.results as { key: string; value: string }[]).map(r => [r.key, r.value]));
+  const n = Number(setting.get('student_count')) || 25;
   const shortOf = new Map<string, string>([[TEACHER.name, TEACHER.short]]);
   for (const a of accounts.results as { name: string; short: string }[]) shortOf.set(a.name, a.short);
 
@@ -254,6 +255,7 @@ async function getBoard(db: D1Database, actor: Actor | null) {
     });
   return {
     studentCount: n,
+    scene: setting.get('scene') || 'playground',
     undoMs: UNDO_MS,
     me: actor,
     daily: out('daily'),
@@ -534,6 +536,17 @@ async function setAlbumDeleted(db: D1Database, actor: Actor, albumId: number, de
   return { ok: true };
 }
 
+// 操場動畫的場景（老師手動選，全班螢幕跟著換）。場景名稱由前端決定，這裡只檢查格式，之後加新場景不用改伺服器
+async function setScene(db: D1Database, actor: Actor, body: Record<string, unknown>, now: number) {
+  const scene = body.scene;
+  if (typeof scene !== 'string' || !/^[a-z][a-z0-9_-]{0,23}$/.test(scene)) throw new HttpError(400, '場景名稱不正確');
+  await db.batch([
+    db.prepare("INSERT INTO settings (key, value) VALUES ('scene', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(scene),
+    audit(db, now, actor, 'scene', { scene }),
+  ]);
+  return { scene };
+}
+
 async function getTrash(db: D1Database, now: number) {
   const since = now - TRASH_DAYS * DAY;
   const [cards, albums] = await db.batch([
@@ -713,6 +726,7 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   const teacher = requireTeacher(actor);
 
   if (method === 'GET' && path === '/api/trash') return json(await getTrash(db, now));
+  if (method === 'PUT' && path === '/api/scene') return json(await setScene(db, teacher, await readBody(request), now));
   if (method === 'POST' && path === '/api/cards/order') return json(await orderCards(db, teacher, await readBody(request), now));
   if (method === 'POST' && path === '/api/cards/clear') return json(await clearCards(db, teacher, await readBody(request), now));
 

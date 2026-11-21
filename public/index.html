@@ -165,6 +165,8 @@
         /* 操場旁白：現在誰在玩什麼（battle.js 會換文字） */
         #playground .pg-label.narr { left: 150px; right: 26%; color: #d6d2e8; font-size: 0.92rem; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #battleToggle { position: absolute; left: 0; bottom: 6px; z-index: 6; background: #252530; color: #a8a4ba; border: 1px solid #3e3e50; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
+        #sceneSelect { position: absolute; left: 0; bottom: 40px; z-index: 6; background: #252530; color: #f6c344; border: 1px solid #3e3e50; border-radius: 8px; padding: 3px 6px; font: inherit; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
+        #playground:not(.battle-on) #sceneSelect { display: none; }
         #battleToggle:focus-visible { outline: 3px solid #4cc9f0; outline-offset: 2px; }
 
         /* ===== 場景換裝（battle.js 在 <html data-scene> 設定：ninja 忍者村、ocean 海底、snow 雪地；沒有設定 = 一般） =====
@@ -1719,7 +1721,24 @@
             if (!lastLoadOk || !window.NiceBattle) return;
             const cards = [...board.daily, ...board.exam].map(c => ({ id: c.id, name: c.name, statuses: c.statuses }));
             window.NiceBattle.sync(board.studentCount, overdueCounts(), cards);
+            // 場景跟著雲端的設定（老師換了，其他螢幕下一次更新時跟著換）
+            if (board.scene && !sceneSaving) window.NiceBattle.scene(board.scene, !battleSceneSeen);
+            battleSceneSeen = true;
         }
+        let sceneSaving = 0, battleSceneSeen = false;
+        // 老師在操場選單換場景：存到雲端
+        window.saveBattleScene = async (scene) => {
+            sceneSaving++;
+            try {
+                await api('PUT', '/api/scene', { scene });
+                if (board) board.scene = scene;
+                const label = (window.NiceBattle.scenes().find(x => x.id === scene) || {}).label || scene;
+                toast('已切換成「' + label + '」，全班螢幕會一起換', true);
+            } catch (e) {
+                toast(e.message || '切換失敗，請再試一次');
+                throw e;
+            } finally { sceneSaving--; }
+        };
     </script>
     <script src="/battle.js" defer></script>
 </body>

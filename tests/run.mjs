@@ -70,6 +70,16 @@ async function runTests() {
     eq([b.daily.length, b.exam.length, b.albums.length], [0, 0, 0]);
   });
 
+  await test('操場場景：預設一般，只有老師可以換，看板會帶目前的場景', async () => {
+    eq((await board()).scene, 'playground');
+    eq((await call('PUT', '/api/scene', { scene: 'ninja' }, null)).status, 401);
+    eq((await call('PUT', '/api/scene', { scene: 'Ninja!' })).status, 400);
+    eq((await call('PUT', '/api/scene', { scene: 'ninja' })).status, 200);
+    eq((await board()).scene, 'ninja');
+    eq((await call('PUT', '/api/scene', { scene: 'playground' })).status, 200);
+    eq((await board()).scene, 'playground');
+  });
+
   await test('沒有密碼或密碼錯誤不能寫入', async () => {
     eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '國習' }, null)).status, 401);
     eq((await call('POST', '/api/cards', { kind: 'daily', baseName: '國習' }, 'wrong')).status, 401);
