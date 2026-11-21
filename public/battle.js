@@ -109,7 +109,7 @@
     if (a.kind === 'kid' && a.act && a.act.type === 'dance') a.rot = 0;
     // 離開下課活動（被骷髏抓、逃跑、活動結束）：手上的東西、頭上的字都收掉
     if (a.act && a.act.type === 'play' && type !== 'play') {
-      a.group = null; a.item = null; a.tag = null; a.hop = 0; a.carry = null; a.rot = 0; a.weapon = null; a.kimono = false; a.sw = null; a.morph = null; a.hero = null; if (a.prop && a.prop.byPlay) a.prop = null;
+      a.group = null; a.item = null; a.tag = null; a.hop = 0; a.carry = null; a.rot = 0; a.weapon = null; a.kimono = false; a.sw = null; a.morph = null; a.hero = null; a.lp = null; a.stuck = null; if (a.prop && a.prop.byPlay) a.prop = null;
       if (a.surf === 'floor' && !a.air) a.y = FLOOR;
     }
     if (a.hidden && type !== 'tele') a.hidden = false;
@@ -1136,6 +1136,16 @@
   const halt = m => { m.act.tx = null; };
   const ready = G => G.members.every(m => m.act.tx == null || Math.abs(m.act.tx - m.x) < 3);
   const phase = (G, p) => { G.phase = p; G.t0 = G.t; G.f = {}; };
+  // 活動中跳到高處（籠子上、按鈕上、積木台）或跳下來：拋物線，y1 可以是函式（版面變動時跟著平台）
+  function leap(m, x1, y1, dur = 0.7, arc = 50) { m.act.tx = null; m.lp = { x0: m.x, y0: m.y, x1, y1, t0: T, dur, arc }; }
+  function stepLeap(m) {
+    const L = m.lp; if (!L) return true;
+    const u = Math.min(1, (T - L.t0) / L.dur), ty = typeof L.y1 === 'function' ? L.y1() : L.y1;
+    m.x = L.x0 + (L.x1 - L.x0) * u; m.y = L.y0 + (ty - L.y0) * u - Math.sin(u * Math.PI) * L.arc;
+    m.act.pose = poseTuck();
+    if (u >= 1) { m.lp = null; m.y = ty; m.act.pose = P({}); return true; }
+    return false;
+  }
   const pose = (m, p, face) => { m.act.pose = p; if (face) m.act.face = face; };
   const hand = m => m.j ? m.j.rH : [m.x, m.y - 45];
   // 同一組一次只有一個人講話（新的一句出來，上一句就收掉）
@@ -1639,6 +1649,7 @@
       g.strokeStyle = 'rgba(160,210,255,0.55)'; g.lineWidth = 1.5; g.beginPath();
       for (let x = (T * 22) % 40; x < xr - 20; x += 40) { g.moveTo(x, FLOOR + 1); g.quadraticCurveTo(x + 8, FLOOR - 2, x + 16, FLOOR + 1); }
       g.stroke();
+      drawStrawBoat();
       // 東風：一條一條的風往曹營（右邊）吹
       if (S.wind > T) {
         const fade = Math.min(1, (S.wind - T) / 2);
@@ -1792,9 +1803,71 @@
       }
     }
   }
+  // ---------- 草船借箭：地上一艘插滿稻草人的船，魏國的士兵常常拿弓射箭，箭插在稻草上，數到十萬支 ----------
+  const strawX = () => clamp(W * 0.2, 250, Math.max(250, kidMaxX() - 260));
+  function startVolley() {
+    const bx = strawX();
+    const ok = k => k.act.type === 'idle' && k.surf === 'floor' && !k.air && !k.carry && !k.cell && !heroOf(k) && Math.abs(k.x - bx) > 110 && Math.abs(k.x - bx) < 560;
+    const all = kids().filter(ok), wei = all.filter(k => factionOf(k).n === '魏');
+    const k = pick(wei.length ? wei : all); if (!k) return false;
+    k.bowT = T; k.f = Math.sign(bx - k.x) || 1; k.act.dur = Math.max(k.act.dur || 0, k.act.t + 1.6);
+    if (Math.random() < 0.4) say(k, pick(['放箭！', '看箭！', '咻～']), 0.9);
+    (S.flyArrows = S.flyArrows || []).push({ k, t0: T + 0.75, dur: rand(0.5, 0.7), tx: bx + rand(-28, 28), ty: FLOOR - rand(16, 40) * BASE / 1.5 });
+    return true;
+  }
+  function drawArrow(x1, y1, ang) {
+    const cx = Math.cos(ang), cy = Math.sin(ang);
+    g.strokeStyle = '#5a3a22'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - cx * 16, y1 - cy * 16); g.stroke();
+    g.strokeStyle = '#e8e2d0'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x1 - cx * 13, y1 - cy * 13); g.lineTo(x1 - cx * 16, y1 - cy * 16); g.stroke();
+  }
+  function drawStrawBoat() {
+    const k = BASE / 1.5, x = strawX(), y = FLOOR;
+    g.save(); g.shadowBlur = 0;
+    g.fillStyle = '#6b3f1f'; g.beginPath(); g.moveTo(x - 46 * k, y - 12 * k); g.lineTo(x + 46 * k, y - 12 * k); g.quadraticCurveTo(x + 40 * k, y, x + 30 * k, y); g.lineTo(x - 30 * k, y); g.quadraticCurveTo(x - 40 * k, y, x - 46 * k, y - 12 * k); g.closePath(); g.fill();
+    for (const dx of [-28, 0, 28]) {
+      const sx = x + dx * k;
+      g.fillStyle = '#d9b45a'; g.strokeStyle = '#8a6a2a'; g.lineWidth = 1;
+      g.beginPath(); g.ellipse(sx, y - 30 * k, 9 * k, 18 * k, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.beginPath(); g.arc(sx, y - 52 * k, 6 * k, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.strokeStyle = '#8a4a1a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(sx - 9 * k, y - 36 * k); g.lineTo(sx + 9 * k, y - 36 * k); g.moveTo(sx - 9 * k, y - 22 * k); g.lineTo(sx + 9 * k, y - 22 * k); g.stroke();
+    }
+    const arrow = (x1, y1, ang) => {
+      const cx = Math.cos(ang), cy = Math.sin(ang);
+      g.strokeStyle = '#5a3a22'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 - cx * 16, y1 - cy * 16); g.stroke();
+      g.strokeStyle = '#e8e2d0'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x1 - cx * 13, y1 - cy * 13); g.lineTo(x1 - cx * 16, y1 - cy * 16); g.stroke();
+    };
+    g.lineCap = 'round';
+    for (const st of (S.stuckArrows || [])) arrow(x + st.dx, y + st.dy, st.ang);
+    const fl = S.flyArrows || [];
+    for (let i = fl.length - 1; i >= 0; i--) {
+      const ar = fl[i]; if (T < ar.t0) continue;
+      if (ar.sx == null) { ar.sx = ar.k.x + ar.k.f * 14 * ar.k.s; ar.sy = ar.k.y - 34 * ar.k.s; }
+      const u = Math.min(1, (T - ar.t0) / ar.dur), ax = ar.sx + (ar.tx - ar.sx) * u, ay = ar.sy + (ar.ty - ar.sy) * u - Math.sin(u * Math.PI) * 26;
+      const ang = Math.atan2(ar.ty - ar.sy + Math.cos(u * Math.PI) * -60, ar.tx - ar.sx);
+      arrow(ax, ay, ang);
+      if (u >= 1) {
+        fl.splice(i, 1);
+        (S.stuckArrows = S.stuckArrows || []).push({ dx: ar.tx - x, dy: ar.ty - y, ang }); if (S.stuckArrows.length > 45) S.stuckArrows.shift();
+        S.arrowCount = (S.arrowCount || 0) + rint(1500, 3500);
+        if (S.arrowCount >= 100000) { narrate('🏹 草船借箭：借到十萬支箭了！孔明說：多謝曹丞相送箭～', true); S.arrowCount = 0; S.stuckArrows = []; }
+      }
+    }
+    const txt = '🏹 草船借箭 ' + (S.arrowCount || 0).toLocaleString() + ' 支';
+    g.font = '900 12px ' + FONT; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = INK; g.fillStyle = '#f6c344';
+    g.strokeText(txt, x, y - 70 * k); g.fillText(txt, x, y - 70 * k); g.textAlign = 'left';
+    g.restore();
+  }
   // 曹軍戰船：船身、船艙、桅杆、帆、寫「曹」的旗子；點火後帆燒掉、整艘變黑
-  function drawWarship(x, fire) {
-    const k = BASE / 1.5, y = FLOOR, on = fire >= 0 && T >= fire, age = on ? T - fire : 0, burnt = on && age > 2.5;
+  function drawPitShips() {
+    const w = pit.x2 - pit.x1, n = w >= 200 ? 3 : 2, sc = Math.min(1, (w - 16) / (n * 66 * BASE / 1.5)), k = BASE / 1.5 * sc, xs = [];
+    for (let i = 0; i < n; i++) xs.push(pit.x1 + w * (i + 0.5) / n);
+    g.save(); g.strokeStyle = '#9aa0aa'; g.lineWidth = 2;
+    for (let i = 0; i + 1 < n; i++) for (let x = xs[i] + 26 * k; x < xs[i + 1] - 26 * k; x += 6) { g.beginPath(); g.ellipse(x + 3, FLOOR - 9 * k, 3, 1.8, 0, 0, Math.PI * 2); g.stroke(); }
+    g.restore();
+    for (const x of xs) drawWarship(x, 0, sc, true);
+  }
+  function drawWarship(x, fire, sc = 1, forever = false) {
+    const k = BASE / 1.5 * sc, y = FLOOR, on = forever || (fire >= 0 && T >= fire), age = forever ? 99 : on ? T - fire : 0, burnt = !forever && on && age > 2.5;
     g.save(); g.shadowBlur = 0;
     g.fillStyle = burnt ? '#2a1a12' : '#6b3f1f';
     g.beginPath(); g.moveTo(x - 30 * k, y - 16 * k); g.lineTo(x + 30 * k, y - 16 * k); g.quadraticCurveTo(x + 26 * k, y, x + 18 * k, y); g.lineTo(x - 18 * k, y); g.quadraticCurveTo(x - 26 * k, y, x - 30 * k, y - 16 * k); g.closePath(); g.fill();
@@ -1807,7 +1880,7 @@
       g.fillStyle = '#fff'; g.font = '900 ' + (7.5 * k) + 'px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('曹', x + 6.5 * k, y - 69.3 * k); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
     }
     if (on) {
-      const grow = Math.min(1, age / 0.6) * (burnt ? 0.6 : 1);
+      const grow = Math.min(1, age / 0.6) * (burnt ? 0.6 : 1) * (S.wind > T || S.shipBoost > T ? 1.5 : 1);
       g.shadowColor = 'rgba(255,140,30,0.9)'; g.shadowBlur = 12;
       for (let n = 0; n < 5; n++) {
         const fx = x + (n - 2) * 11 * k, h = (26 + Math.sin(T * 17 + n * 2) * 8 + (n % 2) * 14) * k * grow, base = y - 14 * k;
@@ -2574,17 +2647,23 @@
         g.restore();
       } },
 
-    // 苦肉計：周瑜打黃蓋——一個願打，一個願挨
+    // 苦肉計：周瑜和黃蓋跳到籠子上面演——一個願打，一個願挨
     kurou: { name: '苦肉計', n: [2, 2], w: 4, scenes: ['sanguo'],
-      setup(G) { const [A, B] = G.members; A.hero = '周瑜'; B.hero = '黃蓋'; go(A, G.x - 34); go(B, G.x + 18); phase(G, 'gather'); },
+      setup(G) { const [A, B] = G.members; A.hero = '周瑜'; B.hero = '黃蓋'; go(A, kidMaxX() - 40); go(B, kidMaxX() - 10); phase(G, 'gather'); },
       step(G) {
-        const [A, B] = G.members, k = G.t - G.t0;
+        const [A, B] = G.members, k = G.t - G.t0, roof = () => cage.top;
+        if (G.phase !== 'gather' && G.phase !== 'up' && G.phase !== 'down') { A.y = B.y = cage.top; }
         if (G.phase === 'gather') {
           if (!ready(G)) return;
+          narrate('🎭 周瑜（' + numOf(A) + ' 號）和黃蓋（' + numOf(B) + ' 號）跳到籠子上面…');
+          phase(G, 'up'); return;
+        }
+        if (G.phase === 'up') {
+          if (!G.f.go) { G.f.go = true; leap(A, cage.x1 + 22, roof, 0.7); leap(B, Math.min(cage.x2 - 22, cage.x1 + 66), roof, 0.85); }
+          if (![A, B].map(stepLeap).every(Boolean)) return;
           pose(A, posePoint(), 1); pose(B, poseBow(), -1);
           A.prop = { kind: 'stick', ang: -1.2, byPlay: true };
           line(G, A, '黃蓋不聽軍令，給我打！', 1.8);
-          narrate('🎭 周瑜（' + numOf(A) + ' 號）要打黃蓋（' + numOf(B) + ' 號）的屁股…');
           phase(G, 'hit'); return;
         }
         if (G.phase === 'hit') {
@@ -2606,151 +2685,195 @@
         }
         if (G.phase === 'wink') {
           if (k > 2 && !G.f.w) { G.f.w = true; line(G, B, '（小聲）其實一點都不痛～', 1.6); }
-          if (k > 4) endGroup(G);
+          if (k > 4) phase(G, 'down');
+          return;
+        }
+        if (G.phase === 'down') {
+          if (!G.f.go) { G.f.go = true; leap(A, kidMaxX() - 50, FLOOR, 0.7); leap(B, kidMaxX() - 20, FLOOR, 0.8); }
+          if ([A, B].map(stepLeap).every(Boolean)) endGroup(G);
         }
       } },
 
-    // 火燒連環船：黃蓋假裝投降、點火，火沿著鐵鍊一艘燒過一艘，曹操逃走
-    chainfire: { name: '火燒連環船', n: [2, 2], w: 5, scenes: ['sanguo'],
+    // 火燒連環船：連環船在骷髏區一直燒；黃蓋假裝投降，把火把丟過去，火燒得更旺
+    chainfire: { name: '火燒連環船', n: [1, 1], w: 4, scenes: ['sanguo'],
+      setup(G) { const A = G.members[0]; A.hero = '黃蓋'; go(A, kidMaxX() - 8); phase(G, 'gather'); },
+      step(G) {
+        const A = G.members[0], k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          A.weapon = { kind: 'torch', ang: -1.45 }; pose(A, poseRaise(), 1);
+          line(G, A, '曹丞相～我黃蓋來投降了～', 1.8);
+          narrate('🔥 黃蓋（' + numOf(A) + ' 號）假裝投降，偷偷拿著火把靠近曹營的連環船…');
+          phase(G, 'aim'); return;
+        }
+        if (G.phase === 'aim') {
+          if (k > 2.2) { pose(A, poseThrow(), 1); A.weapon = null; G.torch = { x0: A.x + 10, y0: A.y - 50 * A.s, t0: T }; phase(G, 'fly'); }
+          return;
+        }
+        if (k > 1 && !G.f.hit) {
+          G.f.hit = true; G.torch = null; S.shipBoost = T + 12;
+          for (let i = 0; i < 3; i++) smoke(pit.x1 + (i + 1) * (pit.x2 - pit.x1) / 4, FLOOR);
+          narrate('🔥 火把丟進曹營！' + (S.wind > T ? '東風一吹，' : '') + '連環船用鐵鍊綁在一起逃不掉，燒得更旺了！', true);
+          line(G, A, '燒吧！', 1.2);
+          for (const sk of skulls()) if (Math.random() < 0.6) say(sk, pick(['好燙！', '船燒起來了！', '快解開鐵鍊！']), 1.4);
+        }
+        if (G.f.hit) pose(A, poseCheer(T), 1);
+        if (k > 4.5) { narrate('🏃 曹操敗走華容道！赤壁之戰，孫權和劉備聯手打贏了！'); endGroup(G); }
+      },
+      draw(G) {
+        if (!G.torch) return;
+        const u = Math.min(1, (T - G.torch.t0) / 1), tx = (pit.x1 + pit.x2) / 2, ty = FLOOR - 30;
+        const x = G.torch.x0 + (tx - G.torch.x0) * u, y = G.torch.y0 + (ty - G.torch.y0) * u - Math.sin(u * Math.PI) * 130;
+        g.save(); g.translate(x, y); g.rotate(T * 12);
+        g.strokeStyle = '#7a4a24'; g.lineWidth = 3; g.beginPath(); g.moveTo(-8, 0); g.lineTo(8, 0); g.stroke();
+        g.shadowColor = 'rgba(255,150,40,0.95)'; g.shadowBlur = 12; g.fillStyle = '#ffb347'; g.beginPath(); g.arc(8, 0, 5, 0, Math.PI * 2); g.fill();
+        g.restore();
+      } },
+
+    // 人形草船（反串的草船借箭）：士兵把一個人當成稻草人一直射，箭插滿身，兩個人把他抬去丟進籠子「收箭」
+    pincushion: { name: '人形草船', n: [4, 5], w: 4, scenes: ['sanguo'],
       setup(G) {
-        const [A, B] = G.members, k = BASE / 1.5;
-        A.hero = '黃蓋'; B.hero = '曹操';
-        G.ships = [0, 1, 2].map(i => ({ x: G.x - 40 * k + i * 70 * k, fire: -1 }));
-        go(A, G.x - 110 * k); go(B, G.ships[2].x);
+        const ms = G.members;
+        G.victim = ms[0]; G.carriers = ms.slice(-2); G.archers = ms.slice(1, -2);
+        G.x = clamp(Math.max(G.x, strawX() + 250), 240, kidMaxX() - 130);       // 離常駐的草船遠一點，才不會混在一起
+        go(G.victim, G.x);
+        G.archers.forEach((m, i) => go(m, Math.max(30, G.x - 150 + i * 34)));
+        G.carriers.forEach((m, i) => go(m, G.x + 70 + i * 30));
+        G.fly = []; G.hits = 0; G.victim.stuck = [];
         phase(G, 'gather');
       },
       step(G) {
-        const [A, B] = G.members, k = G.t - G.t0, wind = S.wind > T;
+        const V = G.victim, k = G.t - G.t0, [C1, C2] = G.carriers;
+        // 飛行中的箭到了就插在身上
+        for (let i = G.fly.length - 1; i >= 0; i--) {
+          const ar = G.fly[i]; if (T < ar.t0 + ar.dur) continue;
+          G.fly.splice(i, 1); G.hits++;
+          const hy = V.y - 22 * V.s;
+          (V.stuck = V.stuck || []).push({ dx: ar.tx - V.x, dy: ar.ty - hy, ang: ar.ang });
+          sparkle(ar.tx, ar.ty);
+          if (G.hits % 2 === 1) line(G, V, pick(['哎喲！', '我不是稻草人啦！', '別射了！', '插在衣服上而已…', '嗚嗚…']), 0.9);
+        }
         if (G.phase === 'gather') {
           if (!ready(G)) return;
-          A.weapon = { kind: 'torch', ang: -1.45 }; B.weapon = { kind: 'longsword', ang: -0.9 };
-          pose(B, poseLaugh(T), -1);
-          line(G, B, '船都用鐵鍊綁在一起，穩得很！哈哈哈', 2);
-          narrate('🚢 曹操（' + numOf(B) + ' 號）把戰船用鐵鍊一艘一艘連起來…');
-          phase(G, 'boast'); return;
+          pose(V, poseSalute(), -1);
+          G.archers.forEach(m => pose(m, P({}), 1));
+          G.carriers.forEach(m => pose(m, posePoint(), -1));
+          line(G, G.archers[0], '那邊有個稻草人！放箭！', 1.6);
+          narrate('🏹 ' + tagsOf(G.archers) + '把 ' + numOf(V) + ' 號當成稻草人，拉弓就射…');
+          phase(G, 'shoot'); return;
         }
-        if (G.phase === 'boast') {
-          pose(B, poseLaugh(T), -1);
-          if (k > 2.4 && !G.f.a) { G.f.a = true; line(G, A, '曹丞相～我黃蓋來投降了～', 1.8); go(A, G.ships[0].x - 40 * BASE / 1.5); }
-          if (G.f.a && ready(G)) {
-            pose(A, poseThrow(), 1); G.ships[0].fire = T;
-            narrate('🔥 黃蓋（' + numOf(A) + ' 號）放火了！' + (wind ? '東風一吹，' : '') + '火沿著鐵鍊燒到每一艘船！', true);
-            phase(G, 'burn');
+        if (G.phase === 'shoot') {
+          const n = Math.floor(k / 0.75);
+          if (n < 7 && !G.f['s' + n] && k > 0.6) {
+            G.f['s' + n] = true;
+            const A = G.archers[n % G.archers.length];
+            A.bowT = T;
+            const sx = A.x + 14 * A.s, sy = A.y - 34 * A.s, tx = V.x + rand(-3, 4) * V.s, ty = V.y - rand(14, 40) * V.s;
+            G.fly.push({ sx, sy, tx, ty, t0: T + 0.75, dur: 0.45, ang: Math.atan2(ty - sy, tx - sx) });
+            if (n === 0 || Math.random() < 0.3) line(G, A, pick(['放箭！', '咻～', '再一支！']), 0.8);
+          }
+          if (G.hits >= 7) {
+            pose(V, P({ ra1: 1.57, ra2: 1.57, la1: -1.57, la2: -1.57, rl1: 0.05, ll1: -0.05 }), -1);
+            line(G, V, '我變成人形草船了…', 1.6);
+            narrate('🌾 ' + numOf(V) + ' 號被射成刺蝟，變成「人形草船」了！');
+            go(C1, V.x - 14, 90); go(C2, V.x + 14, 90);
+            phase(G, 'fetch');
           }
           return;
         }
-        if (G.phase === 'burn') {
-          const gap = wind ? 0.6 : 1.1;
-          G.ships.forEach((sh, i) => { if (sh.fire < 0 && T - G.ships[0].fire > i * gap) sh.fire = T; });
-          if (G.ships[2].fire > 0 && !G.f.run) {
-            G.f.run = true; B.weapon = null; line(G, B, '哇啊啊！快跑啊！', 1.4); go(B, kidMaxX() - 6, 170);
-            pose(A, poseCheer(T), 1);
+        if (G.phase === 'fetch') {
+          if (!ready(G)) return;
+          line(G, C1, '借到的箭，連人一起收走！', 1.6);
+          go(C1, kidMaxX() - 40, 60); go(C2, kidMaxX() - 12, 60);
+          phase(G, 'carry'); return;
+        }
+        if (G.phase === 'carry') {
+          // 兩個人把他舉在頭上，橫著抬去籠子
+          G.carriers.forEach(m => { m.act.pose = poseCarry(T * 7 + m.num); });
+          V.act.tx = null; V.x = (C1.x + C2.x) / 2; V.y = Math.min(C1.y, C2.y) - 44 * C1.s; V.rot = -1.5; V.act.face = 1;
+          if (ready(G) && k > 0.5) {
+            line(G, C2, '一、二、三，丟！', 1.2);
+            leap(V, (cage.x1 + cage.x2) / 2, cage.top + 30, 0.8, 70);
+            phase(G, 'throw');
           }
-          if (G.f.run) pose(A, poseCheer(T), 1);
-          if (k > 6.5) { narrate('🏃 曹操敗走華容道！赤壁之戰，孫權和劉備聯手打贏了！'); phase(G, 'end'); }
           return;
         }
-        if (k > 3) endGroup(G);
+        if (G.phase === 'throw') {
+          V.rot -= 0.25;
+          G.carriers.forEach(m => pose(m, poseCheer(T), 1));
+          if (stepLeap(V)) {
+            narrate('⛓️ ' + numOf(V) + ' 號連人帶箭被丟進籠子：「借到的箭先收進籠子！」', true);
+            V.rot = 0; V.stuck = null; intoCage(V);
+          }
+        }
       },
       draw(G) {
-        const k = BASE / 1.5;
-        // 鐵鍊
-        g.save(); g.strokeStyle = '#9aa0aa'; g.lineWidth = 2;
-        for (let i = 0; i + 1 < G.ships.length; i++) {
-          const x1 = G.ships[i].x + 28 * k, x2 = G.ships[i + 1].x - 28 * k;
-          for (let x = x1; x < x2; x += 6) { g.beginPath(); g.ellipse(x + 3, FLOOR - 9 * k, 3, 1.8, 0, 0, Math.PI * 2); g.stroke(); }
+        g.save(); g.lineCap = 'round';
+        for (const ar of G.fly) {
+          if (T < ar.t0) continue;
+          const u = Math.min(1, (T - ar.t0) / ar.dur);
+          drawArrow(ar.sx + (ar.tx - ar.sx) * u, ar.sy + (ar.ty - ar.sy) * u - Math.sin(u * Math.PI) * 14, ar.ang);
         }
         g.restore();
-        for (const sh of G.ships) drawWarship(sh.x, sh.fire);
       } },
 
-    // 草船借箭：孔明和魯肅在大霧裡放稻草人，曹軍一直射箭，箭都插在稻草上
-    arrows: { name: '草船借箭', n: [2, 2], w: 3, scenes: ['sanguo'],
+    // 桃園三結義：跳到最上面「缺交大魔王」按鈕上面結拜；沒有那個按鈕（或輪到另一種）就先用積木搭一個台
+    oath: { name: '桃園三結義', n: [3, 3], w: 4, scenes: ['sanguo'],
       setup(G) {
-        const [A, B] = G.members, k = BASE / 1.5;
-        A.hero = '孔明'; B.hero = '魯肅';
-        go(A, G.x - 66 * k); go(B, G.x - 40 * k);
-        G.straw = [0, 1, 2].map(i => G.x + (4 + i * 30) * k); G.arrows = []; G.count = 0;
+        const names = ['劉備', '關羽', '張飛'];
+        G.members.forEach((m, i) => { m.hero = names[i]; });
+        const top = [...surfaces.values()].find(q => q.el && q.el.classList.contains('btn-doom') && q.x2 - q.x1 >= 56);
+        if (top && Math.random() < 0.6) { G.top = top.id; G.cx = (top.x1 + top.x2) / 2; }
+        else { G.cx = clamp(G.x, 240, kidMaxX() - 120); G.blocks = 0; }
+        G.members.forEach((m, i) => go(m, G.cx - 46 + i * 46));
         phase(G, 'gather');
       },
-      step(G, dt) {
-        const [A, B] = G.members, k = G.t - G.t0;
-        for (const ar of G.arrows) if (!ar.stuck && T - ar.t0 >= ar.dur) { ar.stuck = true; G.count += rint(1800, 3600); }
-        if (G.phase === 'gather') {
-          if (!ready(G)) return;
-          A.weapon = { kind: 'feather', ang: -1 }; pose(A, poseTalk(T), 1); pose(B, poseListen(), -1);
-          line(G, A, '今晚起大霧，我們去跟曹操借箭。', 1.8);
-          narrate('🌫️ 孔明（' + numOf(A) + ' 號）和魯肅（' + numOf(B) + ' 號）在大霧裡擺了一排稻草人…');
-          phase(G, 'talk'); return;
-        }
-        if (G.phase === 'talk') {
-          if (k > 2 && !G.f.b) { G.f.b = true; line(G, B, '借箭？曹操怎麼可能借我們？', 1.6); }
-          if (k > 3.8) { narrate('🏹 曹軍以為有人來偷襲，咻咻咻一直射箭！', true); phase(G, 'rain'); }
-          return;
-        }
-        if (G.phase === 'rain') {
-          pose(A, poseTalk(T), 1); pose(B, poseCover(), -1);
-          if (k < 6 && Math.random() < dt * 9) {
-            const tx = pick(G.straw) + rand(-5, 5);
-            G.arrows.push({ sx: Math.min(W - 10, G.x + 320), sy: FLOOR - rand(90, 140), tx, ty: FLOOR - rand(12, 34) * BASE / 1.5, t0: T, dur: rand(0.45, 0.7) });
-          }
-          if (k > 6.8) {
-            G.count = 100000; pose(A, poseCheer(T), 1); pose(B, poseCheer(T), -1);
-            line(G, A, '多謝曹丞相送的十萬支箭！', 2);
-            narrate('🏹 草船借箭成功！一支箭都沒做，就借到十萬支箭！');
-            phase(G, 'end');
-          }
-          return;
-        }
-        pose(A, poseCheer(T), 1); pose(B, poseCheer(T), -1);
-        if (k > 3) endGroup(G);
-      },
-      draw(G) {
-        const k = BASE / 1.5;
-        g.save();
-        // 霧
-        if (G.phase === 'talk' || G.phase === 'rain') for (let i = 0; i < 6; i++) {
-          g.fillStyle = 'rgba(225,228,235,0.16)'; g.beginPath(); g.ellipse(G.x - 120 + i * 70 + Math.sin(T * 0.6 + i) * 20, FLOOR - 30 - (i % 3) * 22, 70, 18, 0, 0, Math.PI * 2); g.fill();
-        }
-        // 稻草人
-        for (const x of G.straw) {
-          g.fillStyle = '#d9b45a'; g.strokeStyle = '#8a6a2a'; g.lineWidth = 1;
-          g.beginPath(); g.ellipse(x, FLOOR - 20 * k, 8 * k, 20 * k, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-          g.beginPath(); g.arc(x, FLOOR - 44 * k, 6 * k, 0, Math.PI * 2); g.fill(); g.stroke();
-          g.strokeStyle = '#8a4a1a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x - 8 * k, FLOOR - 28 * k); g.lineTo(x + 8 * k, FLOOR - 28 * k); g.moveTo(x - 8 * k, FLOOR - 12 * k); g.lineTo(x + 8 * k, FLOOR - 12 * k); g.stroke();
-        }
-        // 箭（從右邊射過來，插在稻草上）
-        g.lineCap = 'round';
-        for (const ar of G.arrows) {
-          const u = Math.min(1, (T - ar.t0) / ar.dur), x = ar.sx + (ar.tx - ar.sx) * u, y = ar.sy + (ar.ty - ar.sy) * u - Math.sin(u * Math.PI) * 18;
-          const ang = Math.atan2(ar.ty - ar.sy, ar.tx - ar.sx), cx = Math.cos(ang), cy = Math.sin(ang);
-          g.strokeStyle = '#5a3a22'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(x - cx * 16, y - cy * 16); g.stroke();
-          g.strokeStyle = '#e8e2d0'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x - cx * 13, y - cy * 13); g.lineTo(x - cx * 16, y - cy * 16); g.stroke();
-        }
-        if (G.count > 0) {
-          const txt = G.count >= 100000 ? '🏹 十萬支箭！' : '🏹 ' + G.count.toLocaleString() + ' 支';
-          g.font = '900 13px ' + FONT; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = INK; g.fillStyle = '#f6c344';
-          g.strokeText(txt, G.straw[1], FLOOR - 64 * k); g.fillText(txt, G.straw[1], FLOOR - 64 * k); g.textAlign = 'left';
-        }
-        g.restore();
-      } },
-
-    // 桃園三結義：劉備、關羽、張飛舉杯結拜
-    oath: { name: '桃園三結義', n: [3, 3], w: 3, scenes: ['sanguo'],
-      setup(G) { const names = ['劉備', '關羽', '張飛']; G.members.forEach((m, i) => { m.hero = names[i]; go(m, G.x - 40 + i * 40); }); phase(G, 'gather'); },
       step(G) {
         const ms = G.members, k = G.t - G.t0;
+        const topY = () => G.top ? (surfaces.get(G.top) || { top: FLOOR }).top : FLOOR - 52;
+        if (G.phase === 'oath' || G.phase === 'stand') ms.forEach(m => { if (!m.lp) m.y = topY(); });
         if (G.phase === 'gather') {
           if (!ready(G)) return;
+          if (G.top) { narrate('🍑 劉備、關羽、張飛（' + tagsOf(ms) + '）一起跳到最上面的「缺交大魔王」上面…'); phase(G, 'leap'); }
+          else { narrate('🧱 劉備、關羽、張飛（' + tagsOf(ms) + '）用積木搭一個結拜台…'); phase(G, 'build'); }
+          return;
+        }
+        if (G.phase === 'build') {
+          ms.forEach((m, i) => pose(m, poseCarry(T * 6 + i), i === 2 ? -1 : 1));
+          const want = Math.min(6, Math.floor(k / 0.45));
+          if (want > G.blocks) { G.blocks = want; sparkle(G.cx + ((want - 1) % 3 - 1) * 26, FLOOR - (want > 3 ? 40 : 14)); }
+          if (G.blocks >= 6 && k > 3) phase(G, 'leap');
+          return;
+        }
+        if (G.phase === 'leap') {
+          if (!G.f.go) { G.f.go = true; ms.forEach((m, i) => leap(m, G.cx + (i - 1) * 22, topY, G.top ? 0.9 + i * 0.15 : 0.6 + i * 0.12, G.top ? 120 : 50)); }
+          if (!ms.map(stepLeap).every(Boolean)) return;
+          if (G.top) ms.forEach(m => { m.surf = G.top; });
           ms.forEach((m, i) => { m.item = '🍶'; pose(m, poseCheer(T), i === 2 ? -1 : 1); });
           narrate('🍑 桃園三結義：' + ms.map(m => numOf(m) + ' 號' + m.hero).join('、') + '結拜成兄弟！');
           line(G, ms[0], '我們三個今天結拜！', 1.8);
           phase(G, 'oath'); return;
         }
-        ms.forEach((m, i) => pose(m, poseCheer(T + i), i === 2 ? -1 : 1));
-        if (k > 2.2 && !G.f.a) { G.f.a = true; line(G, ms[1], '有福同享，有難同當！', 2); }
-        if (k > 4.4 && !G.f.b) { G.f.b = true; line(G, ms[2], '大哥！二哥！乾杯！', 1.6); }
-        if (k > 6.5) endGroup(G);
+        if (G.phase === 'oath') {
+          ms.forEach((m, i) => pose(m, poseCheer(T + i), i === 2 ? -1 : 1));
+          if (k > 2.2 && !G.f.a) { G.f.a = true; line(G, ms[1], '有福同享，有難同當！', 2); }
+          if (k > 4.4 && !G.f.b) { G.f.b = true; line(G, ms[2], '大哥！二哥！乾杯！', 1.6); }
+          if (k > 6.5) { ms.forEach(m => { m.item = null; }); if (G.top) endGroup(G); else phase(G, 'down'); }
+          return;
+        }
+        if (G.phase === 'down') {
+          if (!G.f.go) { G.f.go = true; ms.forEach((m, i) => leap(m, G.cx - 60 + i * 60, FLOOR, 0.6 + i * 0.1)); }
+          if (ms.map(stepLeap).every(Boolean)) { smoke(G.cx, FLOOR); G.blocks = 0; endGroup(G); }
+        }
+      },
+      under(G) {
+        // 積木台：下面一排 3 塊、上面一排 3 塊
+        const C = ['#e63946', '#f6c344', '#4cc9f0', '#46d22e', '#9b5de5', '#f4a261'];
+        for (let i = 0; i < (G.blocks || 0); i++) {
+          const row = i < 3 ? 0 : 1, col = i % 3;
+          g.fillStyle = C[i]; g.strokeStyle = INK; g.lineWidth = 2;
+          roundRect(G.cx - 39 + col * 26, FLOOR - 26 - row * 26, 26, 26, 4); g.fill(); g.stroke();
+        }
       } },
 
     elements: { name: '冰火對決', n: [2, 2], w: 6, scenes: ['icefire'],
@@ -3384,6 +3507,7 @@
       const mv = on && a.act.type !== 'idle' && a.act.type !== 'wave';
       a.swK = (a.swK || 0) + ((on ? 1 : 0) - (a.swK || 0)) * 0.06;
       a.swH = (a.swH || 0) + ((mv ? 1 : 0) - (a.swH || 0)) * 0.08;
+      if (a.bowT && T - a.bowT < 1.4 && (a.act.type === 'idle' || a.act.type === 'play')) p = P({ ra1: 1.57, ra2: 1.57, la1: 1.5, la2: T - a.bowT < 0.75 ? -1.3 : 1.3 });
       if (a.swK > 0.02) {
         const n = a.num || 0, ph = T * (a.act.type === 'walk' ? 6 : 9) + n;
         lift = (26 + ((n * 37) % 6) * 17 + Math.sin(T * 1.3 + n) * 7) * a.swK;
@@ -3409,6 +3533,7 @@
     if (a.kind !== 'skull') { g.shadowColor = charred ? 'rgba(255,90,20,' + (0.6 + Math.sin(T * 30) * 0.3).toFixed(2) + ')' : 'rgba(255,255,255,0.95)'; g.shadowBlur = charred ? 9 : 5; }
     if (a.kind === 'skull') drawSkullBody(a, j, s);
     else if (!isBear) drawKid(a, j, s);
+    if (a.stuck && a.kind === 'kid') { g.save(); g.shadowBlur = 0; g.lineCap = 'round'; for (const st of a.stuck) drawArrow(st.dx, st.dy, st.ang); g.restore(); }
     g.restore();
     a.j = isBear ? drawBearReal(a) : { rH: W2(j.rH), lH: W2(j.lH), head: W2(j.head) };
     if (a.burn > T) drawBurn(a.j.head[0], a.j.head[1] - 8 * a.s, a.s, a.burn - T);
@@ -3456,7 +3581,7 @@
   const SCARF = { katana: '#b8323f', spear: '#2b5fa8', kunai: '#6a3cb0' };
   function drawKid(a, j, s) {
     const nj = S.scene === 'ninja', f = a.f || 1, snowy = S.scene === 'snow', icf = S.scene === 'icefire', sg = S.scene === 'sanguo';
-    const hero = sg ? heroOf(a) : null;
+    const hero = sg ? heroOf(a) : null, bowing = sg && a.bowT && T - a.bowT < 1.4 && a.act && (a.act.type === 'idle' || a.act.type === 'play');
     const role = nj ? (a.kimono ? 'kimono' : roleOf(a)) : null;
     const irole = icf ? ICE_ROLES[(a.num || 0) % ICE_ROLES.length] : null;
     const held = a.weapon || (role === 'spear' ? { kind: 'spear', ang: -Math.PI / 2 } : null) || (irole && ICE_HELD[irole] && !a.item && a.act && a.act.type !== 'play' ? ICE_HELD[irole] : null) || (sg && !a.item && a.act && a.act.type !== 'play' ? (hero ? hero.held : (a.num % 2 ? null : { kind: 'spear', ang: -1.5 })) : null);
@@ -3488,7 +3613,19 @@
     g.fillText(String(a.num).padStart(2, '0'), j.head[0], j.head[1] + 0.6 * s);
     g.textAlign = 'left'; g.textBaseline = 'alphabetic';
     if (S.scene === 'ocean') diveGear(a, j, s, f, r);
-    if (held) drawHeld(j, s, f, held);
+    if (held && !bowing) drawHeld(j, s, f, held);
+    if (bowing) {
+      // 弓：弓背往前凸；放箭前弦拉到胸前、箭搭在弦上
+      const [bx, by] = j.rH, cx = bx - f * 8 * s, R = 12 * s, a0 = f > 0 ? -0.95 : Math.PI - 0.95, a1 = f > 0 ? 0.95 : Math.PI + 0.95;
+      const e1 = [cx + Math.cos(a0) * R, by + Math.sin(a0) * R], e2 = [cx + Math.cos(a1) * R, by + Math.sin(a1) * R];
+      const drawn = T - a.bowT < 0.75;
+      g.save(); g.shadowBlur = 0; g.lineCap = 'round';
+      g.strokeStyle = '#7a4a24'; g.lineWidth = 2 * s; g.beginPath(); g.arc(cx, by, R, a0, a1); g.stroke();
+      g.strokeStyle = '#e8e2d0'; g.lineWidth = 0.7 * s; g.beginPath(); g.moveTo(e1[0], e1[1]);
+      if (drawn) g.lineTo(j.lH[0], j.lH[1]); g.lineTo(e2[0], e2[1]); g.stroke();
+      if (drawn) { g.strokeStyle = '#5a3a22'; g.lineWidth = 1.2 * s; g.beginPath(); g.moveTo(j.lH[0], j.lH[1]); g.lineTo(bx + f * 7 * s, by); g.stroke(); }
+      g.restore();
+    }
   }
   // ---------- 三國：主角每天輪流（名字寫在衣服上），其他人是吳、蜀、魏的士兵 ----------
   const HEROES = [
@@ -4261,6 +4398,7 @@
     g.fillStyle = foe().drip;
     for (let i = 0; i < 6; i++) { const ph = (T * 1.3 + i * 0.37) % 1; g.globalAlpha = 1 - ph; g.beginPath(); g.arc(pit.x1 + 20 + i * (pit.x2 - pit.x1 - 40) / 5, FLOOR - ph * 18, 3 + ph * 5, 0, Math.PI * 2); g.fill(); }
     g.globalAlpha = 1;
+    if (S.scene === 'sanguo') drawPitShips();
     g.font = '900 14px ' + FONT; g.fillStyle = foe().label || foe().drip; g.textAlign = 'center';
     g.fillText(foe().pit, (pit.x1 + pit.x2) / 2, FLOOR + 26);
     // 籠子和裡面的人（頭上有座號）
@@ -4423,18 +4561,19 @@
     nextHunt();
     if (done.length) celebrate(done);
   }
-  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }), pos: () => kids().map(k => ({ n: k.num, x: Math.round(k.x), y: Math.round(k.y), F: Math.round(FLOOR), vy: Math.round(k.vy), surf: k.surf, air: k.air, act: k.act.type, t: Math.round((k.act.t || 0) * 10) / 10, hid: !!k.hidden })) };
+  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, gx: groups.map(G => G.kind + '@' + Math.round(G.x)), groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }), pos: () => kids().map(k => ({ n: k.num, x: Math.round(k.x), y: Math.round(k.y), F: Math.round(FLOOR), vy: Math.round(k.vy), surf: k.surf, air: k.air, act: k.act.type, t: Math.round((k.act.t || 0) * 10) / 10, hid: !!k.hidden })) };
 
   // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒有缺交的會放回來）
   // 骷髏大約每 15～30 秒走出骷髏區抓一個人；沒有缺交的人被抓進籠子，過一下會自己跑出來
   // 骷髏大軍：第一次大約 2 分鐘後，之後每 3～5 分鐘一次
   // 場景由老師在操場左下角的選單手動切換（存在雲端，全班螢幕跟著換）；骷髏大約每 35～60 秒出來散步
-  let nextDragon = 0, nextClumsy = 90, nextRandomHunt = rand(10, 20), nextRaid = rand(100, 160), nextPatrol = rand(25, 40);
+  let nextVolley = 0, nextDragon = 0, nextClumsy = 90, nextRandomHunt = rand(10, 20), nextRaid = rand(100, 160), nextPatrol = rand(25, 40);
   setInterval(() => {
     if (!running) return;
     if (Math.random() < 0.7) startActivity();
     if (T > nextPatrol) nextPatrol = T + (skullPatrol() ? rand(35, 60) : 8);
     if (S.scene === 'icefire' && T > nextDragon) nextDragon = T + (startDragon() ? rand(20, 35) : 5);
+    if (S.scene === 'sanguo' && T > nextVolley) nextVolley = T + (startVolley() ? rand(1.2, 3) : 1);
     patrolScare();
     if (!S.hunting && T - narrAt > 25 && !narrQueue.length) narrate(pick(SCENE_AMBIENT[S.scene] && Math.random() < 0.6 ? SCENE_AMBIENT[S.scene] : AMBIENT));
     if (T > nextRaid) nextRaid = T + (startRaid() ? rand(180, 300) : 15);
