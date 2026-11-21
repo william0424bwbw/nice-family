@@ -166,6 +166,54 @@
         #playground .pg-label.narr { left: 150px; right: 26%; color: #d6d2e8; font-size: 0.92rem; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #battleToggle { position: absolute; left: 0; bottom: 6px; z-index: 6; background: #252530; color: #a8a4ba; border: 1px solid #3e3e50; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 0.78rem; font-weight: bold; cursor: pointer; }
         #battleToggle:focus-visible { outline: 3px solid #4cc9f0; outline-offset: 2px; }
+
+        /* ===== 場景換裝（battle.js 在 <html data-scene> 設定：ninja 忍者村、ocean 海底、snow 雪地；沒有設定 = 一般） =====
+           只換外觀：卡片、格子的位置和點按功能都不變，顏色意思也不變（橘＝未交、紅＝逾期、紫＝補考） */
+        #sceneBg { position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+        .bg-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 1.6s ease; background: center bottom / cover no-repeat; }
+        html[data-scene] body { background-color: transparent; }
+        html[data-scene] .bg-ninja { background-image: url(/scenes/ninja.svg); }
+        html[data-scene] .bg-ocean { background-image: url(/scenes/ocean.svg); }
+        html[data-scene] .bg-snow { background-image: url(/scenes/snow.svg); }
+        html[data-scene="ninja"] .bg-ninja, html[data-scene="ocean"] .bg-ocean, html[data-scene="snow"] .bg-snow { opacity: 1; }
+        /* 背景有圖時，欄位底色加深一點，字才看得清楚 */
+        html[data-scene] .track-column { background: rgba(16, 14, 26, 0.55); border-color: rgba(255, 255, 255, 0.14); }
+        html[data-scene] .subtitle, html[data-scene] .track-header-title { text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+
+        /* 忍者村：每張卡片是一座鳥居（黑色笠木、紅色島木和貫、兩根紅柱子），號碼格是達摩（顏色照原本：橘＝未交、紅＝逾期、紫＝補考） */
+        html[data-scene="ninja"] .homework-card { background: linear-gradient(rgba(36,22,34,0.82), rgba(24,16,26,0.88)); border: none; border-radius: 0; padding: 30px 20px 12px; box-shadow: inset 9px 0 0 #c0392b, inset -9px 0 0 #c0392b, inset 10px 0 0 #8e2a20, inset -10px 0 0 #8e2a20, 0 8px 16px rgba(0,0,0,0.45); }
+        html[data-scene="ninja"] .homework-card::before { content: ''; position: absolute; left: -16px; right: -16px; top: -8px; height: 15px; pointer-events: none; background: linear-gradient(#2a2a33, #15151b); clip-path: polygon(0 0, 22px 6px, calc(100% - 22px) 6px, 100% 0, calc(100% - 12px) 100%, 12px 100%); }
+        html[data-scene="ninja"] .homework-card::after { content: ''; position: absolute; left: -6px; right: -6px; top: 7px; height: 16px; pointer-events: none; background: linear-gradient(#d0412f, #b0352a) 0 0 / 100% 7px no-repeat, linear-gradient(#b0352a, #b0352a) calc(50% - 0px) 7px / 12px 9px no-repeat; }
+        html[data-scene="ninja"] .card-header { border-bottom: 5px solid #c0392b; padding-bottom: 6px; margin-left: -11px; margin-right: -11px; padding-left: 11px; padding-right: 11px; }
+        html[data-scene="ninja"] .student-node, html[data-scene="ninja"] .student-node.status-3 { aspect-ratio: 0.95; border-radius: 50% 50% 46% 46% / 56% 56% 44% 44% !important; color: #2a1610; text-shadow: none;
+            background-image: radial-gradient(circle at 41% 31%, #1b1b22 0 3.5%, transparent 4.5%), radial-gradient(circle at 59% 31%, #1b1b22 0 3.5%, transparent 4.5%),
+                radial-gradient(ellipse 33% 27% at 50% 45%, #fff6e6 0 95%, transparent 100%), radial-gradient(ellipse 20% 7% at 50% 80%, #f6c344 0 90%, transparent 100%),
+                radial-gradient(ellipse 70% 40% at 30% 18%, rgba(255,255,255,0.28), transparent 70%); }
+
+        /* 海底：卡片是一顆大泡泡（半透明、有反光），格子是小泡泡 */
+        html[data-scene="ocean"] .homework-card { background: radial-gradient(ellipse at 18% 8%, rgba(255,255,255,0.22), transparent 38%), linear-gradient(180deg, rgba(36,112,160,0.7), rgba(8,46,84,0.85)); border: 2px solid rgba(170, 230, 255, 0.6); border-radius: 28px; box-shadow: inset 0 0 22px rgba(170, 230, 255, 0.28), 0 6px 18px rgba(0, 20, 40, 0.5); }
+        html[data-scene="ocean"] .card-header { border-bottom-color: rgba(170, 230, 255, 0.35); }
+        html[data-scene="ocean"] .card-math .card-title { color: #6ff2d6; }
+        html[data-scene] #playground .pg-label { color: rgba(255, 255, 255, 0.8); text-shadow: 0 1px 3px #000; }
+        html[data-scene] #playground .pg-label.narr { margin: 0 auto; width: fit-content; max-width: calc(74% - 150px); background: rgba(12, 10, 24, 0.72); border-radius: 10px; padding: 3px 12px; bottom: 4px; }
+        html[data-scene="ocean"] .student-node { border-radius: 50% !important; aspect-ratio: 1; background-image: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.8) 0 9%, rgba(255,255,255,0.18) 20%, transparent 46%); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.4), 0 2px 6px rgba(0,0,0,0.3); }
+
+        /* 雪地：卡片和格子上面都積了雪 */
+        html[data-scene="snow"] .homework-card { background: linear-gradient(#2c3650, #232a3d); border-color: #a9bedd; box-shadow: inset 0 -3px 0 rgba(200,220,255,0.18), 0 6px 15px rgba(0,0,0,0.35); }
+        html[data-scene="snow"] .homework-card::before { content: ''; position: absolute; left: -4px; right: -4px; top: -7px; height: 13px; pointer-events: none; background: radial-gradient(circle at 9px 9px, #f4f8ff 8.5px, transparent 9px) 0 0 / 18px 13px repeat-x, linear-gradient(#f4f8ff, #f4f8ff) 0 6px / 100% 7px no-repeat; border-radius: 6px; filter: drop-shadow(0 1px 1px rgba(80,100,140,0.6)); }
+        html[data-scene="snow"] .student-node { box-shadow: inset 0 5px 0 rgba(255,255,255,0.9), 0 2px 0 rgba(0,0,0,0.2); border-radius: 7px 7px 5px 5px; }
+
+        /* 冰與火：左邊（國語）的卡片結冰、下面掛冰柱；右邊（數學）的卡片在燒、上面冒火焰 */
+        html[data-scene] .bg-icefire { background-image: url(/scenes/icefire.svg); }
+        html[data-scene="icefire"] .bg-icefire { opacity: 1; }
+        html[data-scene="icefire"] .track-column:first-child .homework-card { background: linear-gradient(160deg, rgba(220,245,255,0.16), transparent 40%), linear-gradient(#24405e, #172a44); border: 2px solid #9fd8ff; box-shadow: inset 0 0 14px rgba(180,230,255,0.25), 0 6px 15px rgba(0,0,0,0.35); }
+        html[data-scene="icefire"] .track-column:first-child .homework-card::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -9px; height: 9px; pointer-events: none; background: #cfeeff; clip-path: polygon(0 0, 4.17% 100%, 8.33% 0, 12.50% 100%, 16.67% 0, 20.83% 100%, 25.00% 0, 29.17% 100%, 33.33% 0, 37.50% 100%, 41.67% 0, 45.83% 100%, 50.00% 0, 54.17% 100%, 58.33% 0, 62.50% 100%, 66.67% 0, 70.83% 100%, 75.00% 0, 79.17% 100%, 83.33% 0, 87.50% 100%, 91.67% 0, 95.83% 100%, 100.00% 0); }
+        html[data-scene="icefire"] .track-column:first-child .student-node { box-shadow: inset 0 0 0 2px rgba(220,245,255,0.75), inset 0 7px 8px rgba(255,255,255,0.35); }
+        html[data-scene="icefire"] .track-column:last-child .homework-card { background: linear-gradient(#3a1a14, #22100c); border: 2px solid #ff7a1a; box-shadow: 0 0 14px rgba(255,100,30,0.45), inset 0 -8px 16px rgba(255,90,20,0.18); }
+        html[data-scene="icefire"] .track-column:last-child .homework-card::before { content: ''; position: absolute; left: 6px; right: 6px; top: -13px; height: 14px; pointer-events: none; background: radial-gradient(ellipse 8px 13px at 50% 100%, #ffd35a 0 35%, #ff7a1a 36% 70%, transparent 72%) 0 0 / 20px 14px repeat-x; transform-origin: bottom; animation: flame-flicker 0.5s ease-in-out infinite alternate; }
+        html[data-scene="icefire"] .track-column:last-child .student-node { box-shadow: 0 0 8px rgba(255,120,40,0.75), inset 0 -4px 6px rgba(120,20,0,0.35); }
+        @keyframes flame-flicker { from { transform: scaleY(0.8); opacity: 0.8; } to { transform: scaleY(1.1); opacity: 1; } }
+        html[data-scene="icefire"] .card-math .card-title { color: #ffb36b; }
         .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #e63946; color: white; padding: 10px 16px; border-radius: 10px; font-weight: bold; z-index: 200; display: none; max-width: calc(100% - 32px); box-sizing: border-box; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
         .toast.ok { background: #2a9d8f; }
         .toast.show { display: block; }
@@ -273,6 +321,7 @@
     </style>
 </head>
 <body>
+    <div id="sceneBg" aria-hidden="true"><div class="bg-layer bg-ninja"></div><div class="bg-layer bg-ocean"></div><div class="bg-layer bg-snow"></div><div class="bg-layer bg-icefire"></div></div>
 
     <div class="title-area">
         <h1>📋 NICE家族即時親師數位看板</h1>
@@ -380,7 +429,7 @@
         <div class="wall-grid" id="wallGrid"></div>
     </div>
 
-    <div id="playground"><div class="pg-label">操 場</div></div>
+    <div id="playground"><div class="pg-label">一 般</div></div>
 
     <!-- 老師登入 -->
     <div class="overlay" id="loginOverlay">
