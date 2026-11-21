@@ -57,7 +57,7 @@
       const r = el.getBoundingClientRect();
       if (r.width < 40 || r.height < 10 || r.bottom + sy > FLOOR - 40) return;
       const key = platKey(el, i);
-      const lift = el.classList.contains('homework-card') ? (S.scene === 'ninja' ? 7 : S.scene === 'snow' ? 6 : 0) : 0;
+      const lift = el.classList.contains('homework-card') ? (S.scene === 'ninja' ? 7 : S.scene === 'snow' ? 6 : S.scene === 'sanguo' ? 9 : 0) : 0;
       m.set(key, { id: key, x1: r.left + sx + 6, x2: r.right + sx - 6, top: r.top + sy - lift, el });
     });
     m.set('floor', { id: 'floor', x1: 6, x2: W - 6, top: FLOOR, floor: true });
@@ -109,7 +109,7 @@
     if (a.kind === 'kid' && a.act && a.act.type === 'dance') a.rot = 0;
     // 離開下課活動（被骷髏抓、逃跑、活動結束）：手上的東西、頭上的字都收掉
     if (a.act && a.act.type === 'play' && type !== 'play') {
-      a.group = null; a.item = null; a.tag = null; a.hop = 0; a.carry = null; a.rot = 0; a.weapon = null; a.kimono = false; a.sw = null; a.morph = null;
+      a.group = null; a.item = null; a.tag = null; a.hop = 0; a.carry = null; a.rot = 0; a.weapon = null; a.kimono = false; a.sw = null; a.morph = null; a.hero = null; if (a.prop && a.prop.byPlay) a.prop = null;
       if (a.surf === 'floor' && !a.air) a.y = FLOOR;
     }
     if (a.hidden && type !== 'tele') a.hidden = false;
@@ -266,7 +266,7 @@
     setAct(a, 'mantle', { dur: 0.35 });
   }
   // 在地上、沒有在做特別的事，就可以被叫過來幫忙（原本要去哪裡就先不去了）
-  const BUSY_ACTS = ['play', 'tele', 'push', 'stairRide', 'greet', 'taunt', 'grabbed', 'sink', 'thrown', 'puppet', 'boost', 'bearThrow', 'hook', 'walljump', 'mantle', 'climb', 'freeze', 'skill', 'jumpTo', 'flipTo', 'fall', 'flipHop'];
+  const BUSY_ACTS = ['ash', 'play', 'tele', 'push', 'stairRide', 'greet', 'taunt', 'grabbed', 'sink', 'thrown', 'puppet', 'boost', 'bearThrow', 'hook', 'walljump', 'mantle', 'climb', 'freeze', 'skill', 'jumpTo', 'flipTo', 'fall', 'flipHop'];
   const freeForHelp = k => k.surf === 'floor' && !k.air && !k.cell && !k.fear && !k.forceClimb && !BUSY_ACTS.includes(k.act.type)
     && !(k.goal && ['pull', 'putBack', 'rescue', 'build', 'place', 'kick'].includes(k.goal.then));
   function tryBoost(a, s, edgeIn, side, leftSide) {
@@ -763,6 +763,22 @@
         if (Math.random() < dt * 1.2) parts.push({ kind: 'z', x: a.x - a.f * 20, y: a.y - 18, vx: -a.f * 6, vy: -20, life: 1.6, max: 1.6 });
         if (act.t > act.dur) { a.rot = 0; setAct(a, 'idle', { dur: 0.3 }); say(a, '嗯？', 1); }
         break;
+      case 'ash': {
+        // 燒焦定格 1.5 秒 → 碎成灰 → 灰堆冒煙 → 爬出來拍拍身上的灰
+        if (!act.p0) act.p0 = a.p || P({});
+        if (!act.back) a.p = act.p0;
+        if (act.t > 1.5 && !act.crumbled) {
+          act.crumbled = true; a.hidden = true;
+          for (let k = 0; k < 34; k++) parts.push({ kind: 'ash', x: a.x + rand(-9, 9), y: a.y - rand(0, 58) * a.s, vx: rand(-25, 45), vy: rand(-60, 10), life: rand(0.8, 1.5), max: 1.5, c: pick(['#2e2a28', '#4a4440', '#6b6560', '#8a837c', '#ff7a1a']) });
+        }
+        // 灰堆冒一下煙，再被風吹進籠子，在籠子裡變回人（沒缺交的過一下就會溜出來）
+        if (act.t > 4.6) {
+          for (let k = 0; k < 18; k++) parts.push({ kind: 'ash', x: a.x + rand(-12, 12), y: a.y - rand(0, 10), vx: rand(60, 160) * Math.sign(cage.x1 - a.x || 1), vy: rand(-140, -60), life: 1, max: 1.5, c: pick(['#4a4440', '#6b6560', '#8a837c']) });
+          narrate('⛓️ ' + tagOf(a.num) + '那堆灰被風吹進籠子裡，在籠子裡重新變回人了', true);
+          intoCage(a);
+        }
+        break;
+      }
       case 'freeze': a.p = poseShake(T); if (Math.random() < dt * 2) say(a, pick(['不要過來！', '嗚嗚…', '救命！']), 1); break;
       case 'grabbed': {
         const k = act.by;
@@ -1051,6 +1067,7 @@
   const SCENE_AMBIENT = {
     ninja: ['🏯 忍者村的鐘聲響了', '🌸 櫻花瓣一直飄下來', '🥷 聽說今天下午有忍者考試', '🍡 有人在偷吃糰子', '🎋 竹林裡好像有人在練功'],
     ocean: ['🐠 一群熱帶魚游過去', '🫧 咕嚕咕嚕…到處都是泡泡', '🐢 遠遠的好像有一隻海龜', '🐙 章魚躲在石頭後面偷看', '🐚 沙子裡有好多貝殼'],
+    sanguo: ['🚢 江上的連環船一艘接一艘，用鐵鍊綁在一起', '🪶 孔明搖著羽扇：萬事俱備，只欠東風', '🧔 關羽摸了摸他的長鬍子', '🏮 對岸的曹營燈火通明', '🪨 山崖上刻著「赤壁」兩個大字', '🥁 遠遠傳來咚咚咚的戰鼓聲', '📜 今天主角輪到誰？看看衣服上的名字'],
     icefire: ['🌋 火山轟隆隆地在冒煙', '🧊 冰牆後面好像有東西在走…', '🐉 遠遠的好像聽到龍在叫', '🧟 冰原上的殭屍眼睛在發藍光', '🔥 左邊冷得發抖、右邊熱到流汗', '❄️ 凜冬將至…', '🐺 冰原狼跟在主人旁邊，耳朵豎得高高的', '🥚 抱著龍蛋的人說：蛋好像越來越燙了…', '🗡️ 披著黑斗篷的守夜人在冰牆下巡邏', '🔥 火把的光把冰牆照得亮亮的'],
     snow: ['❄️ 好冷喔，大家呼出白白的氣', '⛄ 雪越下越大了', '🧤 有人的手套不見了', '☕ 好想喝一杯熱可可'],
   };
@@ -1540,10 +1557,11 @@
   // 換場景時整個看板的背景、作業卡片、號碼格也跟著換裝（index.html 用 <html data-scene> 切換 CSS）
   const SCENES = [
     { id: 'playground', label: '一 般', banner: '🏫 回到平常的樣子囉！' },
-    { id: 'ninja', label: '忍 者 村', banner: '🥷 場景切換：忍者村！有人帶武士刀、有人拿長槍、有人穿和服，還會瞬間移動' },
-    { id: 'ocean', label: '海 底', banner: '🌊 場景切換：海底世界！大家戴上潛水鏡，咕嚕咕嚕～' },
-    { id: 'snow', label: '雪 地', banner: '❄️ 場景切換：下雪了！大家穿上厚厚的雪衣，號碼都變成雪人了' },
-    { id: 'icefire', label: '冰 與 火', banner: '🔥❄️ 場景切換：冰與火！大家披上黑斗篷，有人拿長劍、有人舉火把、有人抱龍蛋，還有冰原狼跟著；天上有黑色巨龍在飛' },
+    { id: 'ninja', label: '忍 者 村', banner: '🥷 布景主題切換：忍者村！有人帶武士刀、有人拿長槍、有人穿和服，還會瞬間移動' },
+    { id: 'ocean', label: '海 底', banner: '🌊 布景主題切換：海底世界！大家戴上潛水鏡，咕嚕咕嚕～' },
+    { id: 'snow', label: '雪 地', banner: '❄️ 布景主題切換：下雪了！大家穿上厚厚的雪衣，號碼都變成雪人了' },
+    { id: 'sanguo', label: '三 國', banner: '⚔️ 布景主題切換：三國！赤壁江上一整排連環船，孔明、周瑜、黃蓋、曹操、劉關張都來了（名字寫在衣服上）' },
+    { id: 'icefire', label: '冰 與 火', banner: '🔥❄️ 布景主題切換：冰與火！大家披上黑斗篷，有人拿長劍、有人舉火把、有人抱龍蛋，還有冰原狼跟著；天上有黑色巨龍在飛' },
   ];
   function applySceneDom() {
     const root = document.documentElement;
@@ -1615,6 +1633,26 @@
         g.beginPath(); g.arc(x, y, 1.5 + (i % 3) * 0.7, 0, Math.PI * 2); g.fill();
       }
       drawDragon();
+    } else if (S.scene === 'sanguo') {
+      const xr = pit.x1 - 20;
+      g.fillStyle = 'rgba(30,60,110,0.8)'; roundRect(0, FLOOR - 4, xr, 9, 4); g.fill();
+      g.strokeStyle = 'rgba(160,210,255,0.55)'; g.lineWidth = 1.5; g.beginPath();
+      for (let x = (T * 22) % 40; x < xr - 20; x += 40) { g.moveTo(x, FLOOR + 1); g.quadraticCurveTo(x + 8, FLOOR - 2, x + 16, FLOOR + 1); }
+      g.stroke();
+      // 東風：一條一條的風往曹營（右邊）吹
+      if (S.wind > T) {
+        const fade = Math.min(1, (S.wind - T) / 2);
+        g.strokeStyle = 'rgba(230,240,255,' + (0.55 * fade).toFixed(2) + ')'; g.lineWidth = 2; g.lineCap = 'round';
+        for (let i = 0; i < 34; i++) {
+          const x = (i * 173.3 + T * (420 + (i % 5) * 70)) % (W + 240) - 120, y = 30 + (i * 57.7) % Math.max(60, FLOOR - 60), L = 40 + (i % 4) * 18;
+          g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + L * 0.5, y - 4, x + L, y); g.stroke();
+        }
+        for (let i = 0; i < 10; i++) {
+          const x = (i * 211 + T * 360) % (W + 100) - 50, y = FLOOR - 20 - (i * 37) % 160 + Math.sin(T * 6 + i) * 8;
+          g.fillStyle = i % 2 ? 'rgba(120,180,90,0.85)' : 'rgba(200,160,80,0.85)';
+          g.save(); g.translate(x, y); g.rotate(T * 8 + i); g.beginPath(); g.ellipse(0, 0, 4, 2, 0, 0, Math.PI * 2); g.fill(); g.restore();   // 被吹走的葉子
+        }
+      }
     } else if (S.scene === 'ocean') {
       const xr = kidMaxX();
       g.fillStyle = 'rgba(214,190,140,0.6)'; roundRect(0, FLOOR - 4, pit.x1 - 20, 9, 4); g.fill();
@@ -1743,10 +1781,47 @@
       }
       for (const kd of kids()) {
         if (D.hit.has(kd) || kd.surf !== 'floor' || kd.air || Math.abs(kd.x - gx) > 90 || BUSY_ACTS.includes(kd.act.type)) continue;
-        D.hit.add(kd); kd.goal = null; kd.burn = T + 3.4; setAct(kd, 'flipHop'); kd.vx = 0; kd.vy = -430; kd.air = true;
+        D.hit.add(kd); kd.goal = null;
+        if (Math.random() < 0.45) {
+          setAct(kd, 'ash');
+          if (!D.ashSaid) { D.ashSaid = true; setTimeout(() => narrate('💨 ' + tagOf(kd.num) + '被龍火燒成焦炭，碎成一堆灰…灰會飄進籠子裡', true), 1600); }
+          continue;
+        }
+        kd.burn = T + 3.4; setAct(kd, 'flipHop'); kd.vx = 0; kd.vy = -430; kd.air = true;
         if (Math.random() < 0.75) say(kd, pick(['燙燙燙！', '我的屁股著火了！', '頭髮燒焦了啦！', '呼呼呼～好燙！', '水！誰有水！', '我變烤肉了！']), 1.5, 1);
       }
     }
+  }
+  // 曹軍戰船：船身、船艙、桅杆、帆、寫「曹」的旗子；點火後帆燒掉、整艘變黑
+  function drawWarship(x, fire) {
+    const k = BASE / 1.5, y = FLOOR, on = fire >= 0 && T >= fire, age = on ? T - fire : 0, burnt = on && age > 2.5;
+    g.save(); g.shadowBlur = 0;
+    g.fillStyle = burnt ? '#2a1a12' : '#6b3f1f';
+    g.beginPath(); g.moveTo(x - 30 * k, y - 16 * k); g.lineTo(x + 30 * k, y - 16 * k); g.quadraticCurveTo(x + 26 * k, y, x + 18 * k, y); g.lineTo(x - 18 * k, y); g.quadraticCurveTo(x - 26 * k, y, x - 30 * k, y - 16 * k); g.closePath(); g.fill();
+    g.fillStyle = burnt ? '#1e1410' : '#8a5a2b'; g.fillRect(x - 12 * k, y - 26 * k, 24 * k, 10 * k);
+    g.strokeStyle = burnt ? '#1a100a' : '#3a2412'; g.lineWidth = 2.5 * k; g.beginPath(); g.moveTo(x, y - 16 * k); g.lineTo(x, y - 64 * k); g.stroke();
+    if (!burnt) {
+      g.fillStyle = on ? '#8a6a3a' : '#d9c39a'; g.fillRect(x - 14 * k, y - 62 * k, 28 * k, 30 * k);
+      g.strokeStyle = '#8a6a3a'; g.lineWidth = 1.2; g.beginPath(); for (let t = 1; t < 4; t++) { g.moveTo(x - 14 * k, y - 62 * k + t * 7.5 * k); g.lineTo(x + 14 * k, y - 62 * k + t * 7.5 * k); } g.stroke();
+      g.fillStyle = '#2b4fa8'; g.fillRect(x, y - 74 * k, 13 * k, 9 * k);
+      g.fillStyle = '#fff'; g.font = '900 ' + (7.5 * k) + 'px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('曹', x + 6.5 * k, y - 69.3 * k); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    }
+    if (on) {
+      const grow = Math.min(1, age / 0.6) * (burnt ? 0.6 : 1);
+      g.shadowColor = 'rgba(255,140,30,0.9)'; g.shadowBlur = 12;
+      for (let n = 0; n < 5; n++) {
+        const fx = x + (n - 2) * 11 * k, h = (26 + Math.sin(T * 17 + n * 2) * 8 + (n % 2) * 14) * k * grow, base = y - 14 * k;
+        g.fillStyle = n % 2 ? 'rgba(255,120,30,0.9)' : 'rgba(255,214,90,0.92)';
+        g.beginPath(); g.moveTo(fx - 7 * k, base); g.quadraticCurveTo(fx - 4 * k, base - h * 0.6, fx + (S.wind > T ? 4 * k : 0), base - h); g.quadraticCurveTo(fx + 4 * k, base - h * 0.6, fx + 7 * k, base); g.closePath(); g.fill();
+      }
+      g.shadowBlur = 0;
+      for (let n = 0; n < 3; n++) {
+        const u = (T * 0.5 + n / 3) % 1;
+        g.fillStyle = 'rgba(50,40,44,' + (0.5 * (1 - u)).toFixed(2) + ')';
+        g.beginPath(); g.arc(x + u * 40 * k, y - 50 * k - u * 60 * k, (8 + u * 14) * k, 0, Math.PI * 2); g.fill();
+      }
+    }
+    g.restore();
   }
   function stoneLantern(x) {
     const k = BASE / 1.5;
@@ -2457,6 +2532,227 @@
       } },
 
     // ---------- 冰與火：冰火對決、烤棉花糖 ----------
+    // 借東風：孔明在七星壇上搖羽扇，東南風吹起來，接著就火燒連環船
+    eastwind: { name: '借東風', n: [1, 1], w: 5, scenes: ['sanguo'],
+      setup(G) { const m = G.members[0]; m.hero = '孔明'; go(m, G.x); phase(G, 'gather'); },
+      step(G) {
+        const m = G.members[0], k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          m.weapon = { kind: 'feather', ang: -1.3 }; pose(m, poseRaise(), 1);
+          line(G, m, '東風啊，快來吧！', 1.8);
+          narrate('🪶 孔明（' + numOf(m) + ' 號）登上七星壇，搖著羽扇借東風…');
+          phase(G, 'pray'); return;
+        }
+        if (G.phase === 'pray') {
+          m.weapon.ang = -1.3 + Math.sin(T * 5) * 0.6;
+          if (k > 3) {
+            S.wind = T + 14;
+            narrate('🌬️ 東南風呼呼地吹起來了！孔明借到東風了！', true);
+            for (const kd of kids()) if (kd !== m && Math.random() < 0.3 && STANDING.includes(kd.act.type)) say(kd, pick(['好大的風！', '我的帽子！', '風往曹營那邊吹了！']), 1.4);
+            phase(G, 'wind');
+          }
+          return;
+        }
+        if (G.phase === 'wind') {
+          pose(m, poseCheer(T)); m.weapon.ang = -2;
+          if (k > 1.2 && !G.f.l) { G.f.l = true; line(G, m, '萬事俱備，東風也來了！', 2); }
+          if (k > 5) { m.weapon = null; endGroup(G); if (!groups.some(x => x.kind === 'chainfire' && !x.over)) startActivity('chainfire'); }
+        }
+      },
+      draw(G) {
+        // 七星壇：三層土台＋四面旗子（有東風時旗子往右飄）
+        const k = BASE / 1.5, x = G.x, wind = S.wind > T;
+        g.save();
+        g.fillStyle = '#7a5a3a'; g.fillRect(x - 34 * k, FLOOR - 6 * k, 68 * k, 6 * k);
+        g.fillStyle = '#8a6a48'; g.fillRect(x - 26 * k, FLOOR - 4 * k, 52 * k, 4 * k);
+        for (const [dx, c] of [[-46, '#2b4fa8'], [-30, '#15151b'], [30, '#c0392b'], [46, '#f6c344']]) {
+          const px = x + dx * k, top = FLOOR - 62 * k, fl = wind ? 1 : 0.25, wv = Math.sin(T * (wind ? 14 : 3) + dx) * 2 * k;
+          g.strokeStyle = '#5a3a22'; g.lineWidth = 2; g.beginPath(); g.moveTo(px, FLOOR); g.lineTo(px, top); g.stroke();
+          g.fillStyle = c; g.beginPath(); g.moveTo(px, top); g.lineTo(px + 16 * k * fl + 2, top + (1 - fl) * 14 * k + wv); g.lineTo(px + 16 * k * fl + 2, top + 10 * k + (1 - fl) * 14 * k + wv); g.lineTo(px, top + 10 * k); g.closePath(); g.fill();
+        }
+        g.restore();
+      } },
+
+    // 苦肉計：周瑜打黃蓋——一個願打，一個願挨
+    kurou: { name: '苦肉計', n: [2, 2], w: 4, scenes: ['sanguo'],
+      setup(G) { const [A, B] = G.members; A.hero = '周瑜'; B.hero = '黃蓋'; go(A, G.x - 34); go(B, G.x + 18); phase(G, 'gather'); },
+      step(G) {
+        const [A, B] = G.members, k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          pose(A, posePoint(), 1); pose(B, poseBow(), -1);
+          A.prop = { kind: 'stick', ang: -1.2, byPlay: true };
+          line(G, A, '黃蓋不聽軍令，給我打！', 1.8);
+          narrate('🎭 周瑜（' + numOf(A) + ' 號）要打黃蓋（' + numOf(B) + ' 號）的屁股…');
+          phase(G, 'hit'); return;
+        }
+        if (G.phase === 'hit') {
+          if (k < 1.6) return;
+          const t2 = k - 1.6, cyc = Math.floor(t2 / 1.1), u = (t2 % 1.1) / 1.1;
+          if (cyc >= 3) {
+            A.prop = null; pose(A, poseGuard(), 1); pose(B, poseSalute(), -1);
+            line(G, B, '打得好！再打！', 1.6);
+            narrate('🎭 周瑜打黃蓋——一個願打，一個願挨！（這是苦肉計，演給曹操看的）');
+            phase(G, 'wink'); return;
+          }
+          A.prop.ang = u < 0.7 ? -2.2 : 0.5; pose(A, u < 0.7 ? poseRaise() : poseCut(), 1);
+          if (u >= 0.7 && !G.f['h' + cyc]) {
+            G.f['h' + cyc] = true; pose(B, poseOw(), -1);
+            line(G, B, pick(['哎喲！', '啪！好痛！', '嗚…我忍！']), 0.8);
+            for (let i = 0; i < 4; i++) sparkle(B.x + rand(-8, 8), B.y - 18 * B.s + rand(-6, 6));
+          } else if (u < 0.3) pose(B, poseBow(), -1);
+          return;
+        }
+        if (G.phase === 'wink') {
+          if (k > 2 && !G.f.w) { G.f.w = true; line(G, B, '（小聲）其實一點都不痛～', 1.6); }
+          if (k > 4) endGroup(G);
+        }
+      } },
+
+    // 火燒連環船：黃蓋假裝投降、點火，火沿著鐵鍊一艘燒過一艘，曹操逃走
+    chainfire: { name: '火燒連環船', n: [2, 2], w: 5, scenes: ['sanguo'],
+      setup(G) {
+        const [A, B] = G.members, k = BASE / 1.5;
+        A.hero = '黃蓋'; B.hero = '曹操';
+        G.ships = [0, 1, 2].map(i => ({ x: G.x - 40 * k + i * 70 * k, fire: -1 }));
+        go(A, G.x - 110 * k); go(B, G.ships[2].x);
+        phase(G, 'gather');
+      },
+      step(G) {
+        const [A, B] = G.members, k = G.t - G.t0, wind = S.wind > T;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          A.weapon = { kind: 'torch', ang: -1.45 }; B.weapon = { kind: 'longsword', ang: -0.9 };
+          pose(B, poseLaugh(T), -1);
+          line(G, B, '船都用鐵鍊綁在一起，穩得很！哈哈哈', 2);
+          narrate('🚢 曹操（' + numOf(B) + ' 號）把戰船用鐵鍊一艘一艘連起來…');
+          phase(G, 'boast'); return;
+        }
+        if (G.phase === 'boast') {
+          pose(B, poseLaugh(T), -1);
+          if (k > 2.4 && !G.f.a) { G.f.a = true; line(G, A, '曹丞相～我黃蓋來投降了～', 1.8); go(A, G.ships[0].x - 40 * BASE / 1.5); }
+          if (G.f.a && ready(G)) {
+            pose(A, poseThrow(), 1); G.ships[0].fire = T;
+            narrate('🔥 黃蓋（' + numOf(A) + ' 號）放火了！' + (wind ? '東風一吹，' : '') + '火沿著鐵鍊燒到每一艘船！', true);
+            phase(G, 'burn');
+          }
+          return;
+        }
+        if (G.phase === 'burn') {
+          const gap = wind ? 0.6 : 1.1;
+          G.ships.forEach((sh, i) => { if (sh.fire < 0 && T - G.ships[0].fire > i * gap) sh.fire = T; });
+          if (G.ships[2].fire > 0 && !G.f.run) {
+            G.f.run = true; B.weapon = null; line(G, B, '哇啊啊！快跑啊！', 1.4); go(B, kidMaxX() - 6, 170);
+            pose(A, poseCheer(T), 1);
+          }
+          if (G.f.run) pose(A, poseCheer(T), 1);
+          if (k > 6.5) { narrate('🏃 曹操敗走華容道！赤壁之戰，孫權和劉備聯手打贏了！'); phase(G, 'end'); }
+          return;
+        }
+        if (k > 3) endGroup(G);
+      },
+      draw(G) {
+        const k = BASE / 1.5;
+        // 鐵鍊
+        g.save(); g.strokeStyle = '#9aa0aa'; g.lineWidth = 2;
+        for (let i = 0; i + 1 < G.ships.length; i++) {
+          const x1 = G.ships[i].x + 28 * k, x2 = G.ships[i + 1].x - 28 * k;
+          for (let x = x1; x < x2; x += 6) { g.beginPath(); g.ellipse(x + 3, FLOOR - 9 * k, 3, 1.8, 0, 0, Math.PI * 2); g.stroke(); }
+        }
+        g.restore();
+        for (const sh of G.ships) drawWarship(sh.x, sh.fire);
+      } },
+
+    // 草船借箭：孔明和魯肅在大霧裡放稻草人，曹軍一直射箭，箭都插在稻草上
+    arrows: { name: '草船借箭', n: [2, 2], w: 3, scenes: ['sanguo'],
+      setup(G) {
+        const [A, B] = G.members, k = BASE / 1.5;
+        A.hero = '孔明'; B.hero = '魯肅';
+        go(A, G.x - 66 * k); go(B, G.x - 40 * k);
+        G.straw = [0, 1, 2].map(i => G.x + (4 + i * 30) * k); G.arrows = []; G.count = 0;
+        phase(G, 'gather');
+      },
+      step(G, dt) {
+        const [A, B] = G.members, k = G.t - G.t0;
+        for (const ar of G.arrows) if (!ar.stuck && T - ar.t0 >= ar.dur) { ar.stuck = true; G.count += rint(1800, 3600); }
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          A.weapon = { kind: 'feather', ang: -1 }; pose(A, poseTalk(T), 1); pose(B, poseListen(), -1);
+          line(G, A, '今晚起大霧，我們去跟曹操借箭。', 1.8);
+          narrate('🌫️ 孔明（' + numOf(A) + ' 號）和魯肅（' + numOf(B) + ' 號）在大霧裡擺了一排稻草人…');
+          phase(G, 'talk'); return;
+        }
+        if (G.phase === 'talk') {
+          if (k > 2 && !G.f.b) { G.f.b = true; line(G, B, '借箭？曹操怎麼可能借我們？', 1.6); }
+          if (k > 3.8) { narrate('🏹 曹軍以為有人來偷襲，咻咻咻一直射箭！', true); phase(G, 'rain'); }
+          return;
+        }
+        if (G.phase === 'rain') {
+          pose(A, poseTalk(T), 1); pose(B, poseCover(), -1);
+          if (k < 6 && Math.random() < dt * 9) {
+            const tx = pick(G.straw) + rand(-5, 5);
+            G.arrows.push({ sx: Math.min(W - 10, G.x + 320), sy: FLOOR - rand(90, 140), tx, ty: FLOOR - rand(12, 34) * BASE / 1.5, t0: T, dur: rand(0.45, 0.7) });
+          }
+          if (k > 6.8) {
+            G.count = 100000; pose(A, poseCheer(T), 1); pose(B, poseCheer(T), -1);
+            line(G, A, '多謝曹丞相送的十萬支箭！', 2);
+            narrate('🏹 草船借箭成功！一支箭都沒做，就借到十萬支箭！');
+            phase(G, 'end');
+          }
+          return;
+        }
+        pose(A, poseCheer(T), 1); pose(B, poseCheer(T), -1);
+        if (k > 3) endGroup(G);
+      },
+      draw(G) {
+        const k = BASE / 1.5;
+        g.save();
+        // 霧
+        if (G.phase === 'talk' || G.phase === 'rain') for (let i = 0; i < 6; i++) {
+          g.fillStyle = 'rgba(225,228,235,0.16)'; g.beginPath(); g.ellipse(G.x - 120 + i * 70 + Math.sin(T * 0.6 + i) * 20, FLOOR - 30 - (i % 3) * 22, 70, 18, 0, 0, Math.PI * 2); g.fill();
+        }
+        // 稻草人
+        for (const x of G.straw) {
+          g.fillStyle = '#d9b45a'; g.strokeStyle = '#8a6a2a'; g.lineWidth = 1;
+          g.beginPath(); g.ellipse(x, FLOOR - 20 * k, 8 * k, 20 * k, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+          g.beginPath(); g.arc(x, FLOOR - 44 * k, 6 * k, 0, Math.PI * 2); g.fill(); g.stroke();
+          g.strokeStyle = '#8a4a1a'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x - 8 * k, FLOOR - 28 * k); g.lineTo(x + 8 * k, FLOOR - 28 * k); g.moveTo(x - 8 * k, FLOOR - 12 * k); g.lineTo(x + 8 * k, FLOOR - 12 * k); g.stroke();
+        }
+        // 箭（從右邊射過來，插在稻草上）
+        g.lineCap = 'round';
+        for (const ar of G.arrows) {
+          const u = Math.min(1, (T - ar.t0) / ar.dur), x = ar.sx + (ar.tx - ar.sx) * u, y = ar.sy + (ar.ty - ar.sy) * u - Math.sin(u * Math.PI) * 18;
+          const ang = Math.atan2(ar.ty - ar.sy, ar.tx - ar.sx), cx = Math.cos(ang), cy = Math.sin(ang);
+          g.strokeStyle = '#5a3a22'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(x - cx * 16, y - cy * 16); g.stroke();
+          g.strokeStyle = '#e8e2d0'; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x - cx * 13, y - cy * 13); g.lineTo(x - cx * 16, y - cy * 16); g.stroke();
+        }
+        if (G.count > 0) {
+          const txt = G.count >= 100000 ? '🏹 十萬支箭！' : '🏹 ' + G.count.toLocaleString() + ' 支';
+          g.font = '900 13px ' + FONT; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = INK; g.fillStyle = '#f6c344';
+          g.strokeText(txt, G.straw[1], FLOOR - 64 * k); g.fillText(txt, G.straw[1], FLOOR - 64 * k); g.textAlign = 'left';
+        }
+        g.restore();
+      } },
+
+    // 桃園三結義：劉備、關羽、張飛舉杯結拜
+    oath: { name: '桃園三結義', n: [3, 3], w: 3, scenes: ['sanguo'],
+      setup(G) { const names = ['劉備', '關羽', '張飛']; G.members.forEach((m, i) => { m.hero = names[i]; go(m, G.x - 40 + i * 40); }); phase(G, 'gather'); },
+      step(G) {
+        const ms = G.members, k = G.t - G.t0;
+        if (G.phase === 'gather') {
+          if (!ready(G)) return;
+          ms.forEach((m, i) => { m.item = '🍶'; pose(m, poseCheer(T), i === 2 ? -1 : 1); });
+          narrate('🍑 桃園三結義：' + ms.map(m => numOf(m) + ' 號' + m.hero).join('、') + '結拜成兄弟！');
+          line(G, ms[0], '我們三個今天結拜！', 1.8);
+          phase(G, 'oath'); return;
+        }
+        ms.forEach((m, i) => pose(m, poseCheer(T + i), i === 2 ? -1 : 1));
+        if (k > 2.2 && !G.f.a) { G.f.a = true; line(G, ms[1], '有福同享，有難同當！', 2); }
+        if (k > 4.4 && !G.f.b) { G.f.b = true; line(G, ms[2], '大哥！二哥！乾杯！', 1.6); }
+        if (k > 6.5) endGroup(G);
+      } },
+
     elements: { name: '冰火對決', n: [2, 2], w: 6, scenes: ['icefire'],
       setup(G) { const [A, B] = G.members; go(A, G.x - 70); go(B, G.x + 70); G.shots = []; phase(G, 'gather'); },
       step(G, dt) {
@@ -3073,32 +3369,50 @@
   }
   function poly(pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.stroke(); }
 
+  const SWIM_ACTS = ['walk', 'run', 'flee', 'idle', 'wave'];
   function drawAgent(a) {
-    if (a.hidden) { a.bubbleAt = null; return; }
+    if (a.hidden) { if (a.act.type === 'ash') drawAshPile(a); a.bubbleAt = null; return; }
     if (a.morph) { drawMorph(a); return; }
     if (a.burn) {
       if (a.burn > T) { if (!a.air && a.act.type !== 'play') a.hop = Math.abs(Math.sin(T * 13)) * 7; }
       else { a.burn = 0; if (a.act.type !== 'play') a.hop = 0; }
     }
-    const p = a.p || P({});
+    let p = a.p || P({}), rot = a.rot || 0, lift = 0;
+    if (a.kind === 'kid') {
+      // 海底：在地上走、跑、站著的人改成在水裡游：走動時身體橫過來自由式，停下來時直直的踩水
+      const on = S.scene === 'ocean' && a.surf === 'floor' && !a.air && !a.rot && !a.carry && !a.cell && SWIM_ACTS.includes(a.act.type);
+      const mv = on && a.act.type !== 'idle' && a.act.type !== 'wave';
+      a.swK = (a.swK || 0) + ((on ? 1 : 0) - (a.swK || 0)) * 0.06;
+      a.swH = (a.swH || 0) + ((mv ? 1 : 0) - (a.swH || 0)) * 0.08;
+      if (a.swK > 0.02) {
+        const n = a.num || 0, ph = T * (a.act.type === 'walk' ? 6 : 9) + n;
+        lift = (26 + ((n * 37) % 6) * 17 + Math.sin(T * 1.3 + n) * 7) * a.swK;
+        rot = (a.f || 1) * 1.35 * a.swH * a.swK;
+        if (on) p = a.swH > 0.5
+          ? P({ ra1: ph % (Math.PI * 2), ra2: ph % (Math.PI * 2) + 0.25, la1: (ph + Math.PI) % (Math.PI * 2), la2: (ph + Math.PI) % (Math.PI * 2) + 0.25, rl1: 0.35 * Math.sin(T * 14 + n), rl2: 0.1, ll1: -0.35 * Math.sin(T * 14 + n), ll2: 0.1 })
+          : P({ ra1: 1.3 + 0.5 * Math.sin(T * 5 + n), ra2: 1.8, la1: -1.3 - 0.5 * Math.sin(T * 5 + n), la2: -1.8, rl1: 0.3 * Math.sin(T * 7 + n), rl2: 0.4, ll1: -0.3 * Math.sin(T * 7 + n), ll2: 0.4 });
+      }
+    }
     const isBear = a.kind === 'bear';
     const j = joints(p, a.s, a.f, isBear);
     const legScale = j.legLen / 22;
-    let hy = a.y - p.hipH * a.s * legScale - (a.hop || 0);
+    let hy = a.y - p.hipH * a.s * legScale - (a.hop || 0) - lift;
     if (a.act.type === 'sleep') hy = a.y - 4 * a.s;
     const hx = a.x;
-    const c = Math.cos(a.rot || 0), sn = Math.sin(a.rot || 0);
+    const c = Math.cos(rot), sn = Math.sin(rot);
     const W2 = q => [hx + q[0] * c - q[1] * sn, hy + q[0] * sn + q[1] * c];
-    g.save(); g.translate(hx, hy); g.rotate(a.rot || 0);
+    g.save(); g.translate(hx, hy); g.rotate(rot);
     g.lineCap = 'round'; g.lineJoin = 'round';
     const s = a.s;
     // 黑色角色在深色看板上加一圈白光邊，才看得清楚
-    if (a.kind !== 'skull') { g.shadowColor = 'rgba(255,255,255,0.95)'; g.shadowBlur = 5; }
+    const charred = a.act.type === 'ash' && !a.act.back;
+    if (a.kind !== 'skull') { g.shadowColor = charred ? 'rgba(255,90,20,' + (0.6 + Math.sin(T * 30) * 0.3).toFixed(2) + ')' : 'rgba(255,255,255,0.95)'; g.shadowBlur = charred ? 9 : 5; }
     if (a.kind === 'skull') drawSkullBody(a, j, s);
     else if (!isBear) drawKid(a, j, s);
     g.restore();
     a.j = isBear ? drawBearReal(a) : { rH: W2(j.rH), lH: W2(j.lH), head: W2(j.head) };
     if (a.burn > T) drawBurn(a.j.head[0], a.j.head[1] - 8 * a.s, a.s, a.burn - T);
+    if (charred) drawCharred(a);
     if (a.phone && !isBear) {
       const [x, y] = a.j.rH;
       g.save(); g.shadowColor = 'rgba(143,211,255,0.9)'; g.shadowBlur = 8;
@@ -3141,26 +3455,31 @@
   const KIMONO = ['#e05a8a', '#3d5a98', '#c0392b', '#2a9d8f', '#9b5de5', '#e9a23b'];
   const SCARF = { katana: '#b8323f', spear: '#2b5fa8', kunai: '#6a3cb0' };
   function drawKid(a, j, s) {
-    const nj = S.scene === 'ninja', f = a.f || 1, snowy = S.scene === 'snow', icf = S.scene === 'icefire';
+    const nj = S.scene === 'ninja', f = a.f || 1, snowy = S.scene === 'snow', icf = S.scene === 'icefire', sg = S.scene === 'sanguo';
+    const hero = sg ? heroOf(a) : null;
     const role = nj ? (a.kimono ? 'kimono' : roleOf(a)) : null;
     const irole = icf ? ICE_ROLES[(a.num || 0) % ICE_ROLES.length] : null;
-    const held = a.weapon || (role === 'spear' ? { kind: 'spear', ang: -Math.PI / 2 } : null) || (irole && ICE_HELD[irole] && !a.item && a.act && a.act.type !== 'play' ? ICE_HELD[irole] : null);
+    const held = a.weapon || (role === 'spear' ? { kind: 'spear', ang: -Math.PI / 2 } : null) || (irole && ICE_HELD[irole] && !a.item && a.act && a.act.type !== 'play' ? ICE_HELD[irole] : null) || (sg && !a.item && a.act && a.act.type !== 'play' ? (hero ? hero.held : (a.num % 2 ? null : { kind: 'spear', ang: -1.5 })) : null);
     if (irole === 'wolf' && a.act && !a.air && !a.rot) drawWolf(-f * 17 * s, Math.max(j.lF[1], j.rF[1]), f, s, !!a.act && ['walk', 'run', 'flee'].includes(a.act.type));
     if (nj) ninjaBack(a, j, s, f, role, held);
     if (icf) drawCloak(a, j, s, f);
+    if (sg && !hero) soldierFlag(a, j, s, f);
     g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 3.4 * s;
     poly([j.lF, j.lK, j.hip]); poly([j.rF, j.rK, j.hip]);
     if (role === 'kimono') drawKimono(a, j, s);
     if (snowy) drawParka(a, j, s);
+    if (sg) sanguoRobe(a, j, s, f, hero);
     g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 3.4 * s;
     poly([j.lH, j.lE, j.neck]); poly([j.hip, j.neck]); poly([j.rH, j.rE, j.neck]);
     if (role === 'kimono') drawSleeves(a, j, s);
     if (snowy) drawParkaSleeves(a, j, s);
+    if (sg) sanguoChest(a, j, s, hero);
     else if (nj) { g.save(); g.shadowBlur = 0; g.fillStyle = SCARF[role] || '#b8323f'; g.fillRect(j.hip[0] - 3.2 * s, j.hip[1] - 2.6 * s, 6.4 * s, 2.6 * s); g.restore(); }   // 腰帶
     const r = 7.5 * s;
     g.fillStyle = INK; g.beginPath(); g.arc(j.head[0], j.head[1], r, 0, Math.PI * 2); g.fill();
     if (nj) ninjaHead(a, j, s, f, role, r);
     if (snowy) drawHood(a, j, s, r);
+    if (sg) sanguoHead(a, j, s, f, hero, r);
     if (icf) { g.save(); g.shadowBlur = 0; g.fillStyle = '#d9cbb0'; g.beginPath(); g.ellipse(j.neck[0], j.neck[1] + 0.5 * s, 5.4 * s, 2.6 * s, 0, 0, Math.PI * 2); g.fill(); g.restore(); }   // 斗篷的毛領
     // 頭上的白色座號（翻跟斗時也跟著轉）
     g.fillStyle = '#ffffff';
@@ -3171,6 +3490,109 @@
     if (S.scene === 'ocean') diveGear(a, j, s, f, r);
     if (held) drawHeld(j, s, f, held);
   }
+  // ---------- 三國：主角每天輪流（名字寫在衣服上），其他人是吳、蜀、魏的士兵 ----------
+  const HEROES = [
+    { n: '孔明', c: '#ece6d6', dark: true, hat: 'scarf', held: { kind: 'feather', ang: -1.2 } },
+    { n: '周瑜', c: '#c0392b', hat: 'crown', held: { kind: 'longsword', ang: -1.1 } },
+    { n: '黃蓋', c: '#8e3b2a', hat: 'helmet', beard: '#f1efe6', held: { kind: 'torch', ang: -1.45 } },
+    { n: '曹操', c: '#33367a', hat: 'tall', held: { kind: 'longsword', ang: -0.9 } },
+    { n: '劉備', c: '#d4a72c', dark: true, hat: 'crown', held: { kind: 'longsword', ang: -1.1 } },
+    { n: '關羽', c: '#2e8b57', hat: 'green', beard: '#15151b', long: true, held: { kind: 'guandao', ang: -1.45 } },
+    { n: '張飛', c: '#3a3a44', hat: 'band', beard: '#15151b', held: { kind: 'spear', ang: -1.5 } },
+    { n: '趙雲', c: '#dfe6ee', dark: true, hat: 'helmet', held: { kind: 'spear', ang: -1.3 } },
+    { n: '魯肅', c: '#2b5fa8', hat: 'scholar', held: null },
+  ];
+  const FACTIONS = [{ n: '吳', c: '#b8323f' }, { n: '蜀', c: '#2e8b57' }, { n: '魏', c: '#2b4fa8' }];
+  const dayNo = () => Math.floor((Date.now() + 8 * 3600e3) / 86400e3);
+  function heroOf(a) {
+    if (a.hero) return HEROES.find(h => h.n === a.hero) || null;
+    const slot = ((a.num || 0) + dayNo() * 7) % 25;          // 每天換一批人當主角
+    if (slot >= HEROES.length) return null;
+    // 有人在故事裡正在演這個角色（例如借東風的孔明）：原本今天輪到的人先當士兵，畫面上不會有兩個孔明
+    return agents.some(k => k !== a && k.hero === HEROES[slot].n && !k.gone) ? null : HEROES[slot];
+  }
+  const factionOf = a => FACTIONS[(a.num || 0) % 3];
+  // 士兵背後插的背旗（寫吳、蜀、魏）
+  function soldierFlag(a, j, s, f) {
+    const fc = factionOf(a), [hx, hy] = j.hip, top = j.head[1] - 16 * s, px = hx - f * 4 * s, wave = Math.sin(T * 6 + (a.num || 0)) * 1.5 * s;
+    g.save(); g.shadowBlur = 0;
+    g.strokeStyle = '#5a3a22'; g.lineWidth = 1.4 * s; g.beginPath(); g.moveTo(px, hy); g.lineTo(px, top); g.stroke();
+    g.fillStyle = fc.c; g.beginPath(); g.moveTo(px, top); g.lineTo(px - f * 11 * s, top + wave); g.lineTo(px - f * 11 * s, top + 13 * s + wave); g.lineTo(px, top + 13 * s); g.closePath(); g.fill();
+    g.fillStyle = '#fff'; g.font = '900 ' + (8 * s) + 'px ' + FONT; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(fc.n, px - f * 5.5 * s, top + 6.8 * s + wave / 2);
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.restore();
+  }
+  // 主角穿長袍，士兵穿短短的戰袍
+  function sanguoRobe(a, j, s, f, hero) {
+    const [nx, ny] = j.neck, [hx, hy] = j.hip, c = hero ? hero.c : factionOf(a).c, hem = hero ? 10 : 4, w = hero ? 8 : 6;
+    g.save(); g.shadowBlur = 0;
+    g.fillStyle = c; g.beginPath();
+    g.moveTo(nx - 5 * s, ny); g.lineTo(nx + 5 * s, ny); g.lineTo(hx + w * s, hy + hem * s); g.lineTo(hx - w * s, hy + hem * s); g.closePath(); g.fill();
+    g.fillStyle = hero ? '#f6c344' : '#3a2a20'; g.fillRect(hx - 5.4 * s, hy - 1.6 * s, 10.8 * s, 2.2 * s);       // 腰帶
+    if (!hero) {                                                                                                   // 士兵的鎧甲片
+      g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 0.7 * s; g.beginPath();
+      for (let t = 0.25; t < 0.9; t += 0.2) { const y = ny + (hy - ny) * t; g.moveTo(nx - 4.5 * s, y); g.lineTo(nx + 4.5 * s, y); }
+      g.stroke();
+    }
+    g.restore();
+  }
+  // 胸口：主角寫名字，士兵是圓圈裡的「兵」
+  function sanguoChest(a, j, s, hero) {
+    const x = (j.neck[0] + j.hip[0]) / 2, y = j.neck[1] + (j.hip[1] - j.neck[1]) * 0.45;
+    g.save(); g.shadowBlur = 0; g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (hero) {
+      g.font = '900 ' + (7.4 * s) + 'px ' + FONT; g.lineWidth = 2.4 * s; g.lineJoin = 'round';
+      g.strokeStyle = hero.dark ? '#fffaf0' : '#15151b'; g.fillStyle = hero.dark ? '#7a1a12' : '#fff4c8';
+      g.strokeText(hero.n, x, y); g.fillText(hero.n, x, y);
+    } else {
+      g.fillStyle = '#f4ecd8'; g.beginPath(); g.arc(x, y, 3.6 * s, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#15151b'; g.font = '900 ' + (5 * s) + 'px ' + FONT; g.fillText('兵', x, y + 0.3 * s);
+    }
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.restore();
+  }
+  // 頭上：綸巾、冠、頭盔、長鬍子…；士兵戴尖頂頭盔
+  function sanguoHead(a, j, s, f, hero, r) {
+    const [hx, hy] = j.head;
+    g.save(); g.shadowBlur = 0; g.lineCap = 'round';
+    const hat = hero ? hero.hat : 'soldier';
+    if (hat === 'scarf') {             // 孔明的綸巾：藍色頭巾＋後面兩條飄帶
+      g.fillStyle = '#2b3f7a'; g.beginPath(); g.moveTo(hx - r, hy - r * 0.35); g.lineTo(hx - r * 0.7, hy - r * 1.55); g.lineTo(hx + r * 0.7, hy - r * 1.55); g.lineTo(hx + r, hy - r * 0.35); g.closePath(); g.fill();
+      g.strokeStyle = '#2b3f7a'; g.lineWidth = 1.6 * s; const wv = Math.sin(T * 6) * 2 * s;
+      g.beginPath(); g.moveTo(hx - f * r * 0.8, hy - r * 0.6); g.quadraticCurveTo(hx - f * r * 1.6, hy, hx - f * r * 2, hy + r * 0.6 + wv); g.stroke();
+    } else if (hat === 'crown') {      // 髮髻上的金冠
+      g.fillStyle = '#15151b'; g.beginPath(); g.arc(hx, hy - r * 1.05, r * 0.5, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#f6c344'; g.fillRect(hx - r * 0.45, hy - r * 1.5, r * 0.9, r * 0.45);
+      g.strokeStyle = '#f6c344'; g.lineWidth = 1 * s; g.beginPath(); g.moveTo(hx - r * 1.1, hy - r * 1.3); g.lineTo(hx + r * 1.1, hy - r * 1.3); g.stroke();   // 簪子
+    } else if (hat === 'helmet') {     // 銀色頭盔＋紅纓
+      g.fillStyle = '#b9c0cc'; g.beginPath(); g.arc(hx, hy - r * 0.3, r * 1.08, Math.PI, 0); g.fill();
+      g.strokeStyle = '#c0392b'; g.lineWidth = 2.2 * s; g.beginPath(); g.moveTo(hx, hy - r * 1.35); g.quadraticCurveTo(hx - f * r * 0.8, hy - r * 2.1, hx - f * r * 1.5, hy - r * 1.4 + Math.sin(T * 7) * s); g.stroke();
+    } else if (hat === 'tall') {       // 曹操的高冠
+      g.fillStyle = '#15151b'; g.beginPath(); g.moveTo(hx - r * 0.55, hy - r * 0.85); g.lineTo(hx - r * 0.75, hy - r * 2.1); g.lineTo(hx + r * 0.75, hy - r * 2.1); g.lineTo(hx + r * 0.55, hy - r * 0.85); g.closePath(); g.fill();
+      g.fillStyle = '#f6c344'; g.fillRect(hx - r * 0.75, hy - r * 2.2, r * 1.5, r * 0.22);
+    } else if (hat === 'green') {      // 關羽的綠頭巾
+      g.fillStyle = '#2e8b57'; g.beginPath(); g.arc(hx, hy - r * 0.25, r * 1.06, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+      g.beginPath(); g.arc(hx, hy - r * 1.25, r * 0.42, 0, Math.PI * 2); g.fill();
+    } else if (hat === 'band') {       // 張飛的頭帶
+      g.strokeStyle = '#c0392b'; g.lineWidth = 2.4 * s; g.beginPath(); g.moveTo(hx - r, hy - r * 0.45); g.lineTo(hx + r, hy - r * 0.45); g.stroke();
+      g.lineWidth = 1.5 * s; g.beginPath(); g.moveTo(hx - f * r, hy - r * 0.45); g.lineTo(hx - f * r * 1.7, hy + Math.sin(T * 8) * 2 * s); g.stroke();
+    } else if (hat === 'scholar') {    // 文官的方帽
+      g.fillStyle = '#15151b'; g.fillRect(hx - r * 0.75, hy - r * 1.6, r * 1.5, r * 0.75);
+      g.fillRect(hx - r * 1.3, hy - r * 1.05, r * 2.6, r * 0.2);
+    } else {                           // 士兵：尖頂頭盔（陣營的顏色）
+      g.fillStyle = factionOf(a).c; g.beginPath(); g.moveTo(hx - r * 1.08, hy - r * 0.3); g.lineTo(hx, hy - r * 1.75); g.lineTo(hx + r * 1.08, hy - r * 0.3); g.closePath(); g.fill();
+      g.fillStyle = '#c9a24a'; g.fillRect(hx - r * 1.08, hy - r * 0.42, r * 2.16, r * 0.24);
+    }
+    if (hero && hero.beard) {          // 長鬍子（關羽的美髯最長）
+      const L = (hero.long ? 15 : 8) * s, sway = Math.sin(T * 3 + (a.num || 0)) * s;
+      g.fillStyle = hero.beard; g.strokeStyle = hero.beard === '#15151b' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.25)'; g.lineWidth = 0.7 * s;
+      g.beginPath(); g.moveTo(hx - r * 0.55 + f * r * 0.3, hy + r * 0.55); g.quadraticCurveTo(hx + f * r * 0.3, hy + r * 0.55 + L * 0.6, hx + f * r * 0.35 + sway, hy + r * 0.6 + L);
+      g.quadraticCurveTo(hx + f * r * 0.5, hy + r * 0.55 + L * 0.5, hx + r * 0.55 + f * r * 0.3, hy + r * 0.55); g.closePath(); g.fill(); g.stroke();
+    }
+    g.restore();
+  }
+
   // ---------- 雪地：厚雪衣、毛毛帽兜、手套、雪靴 ----------
   const COATS = ['#e63946', '#2b7bd6', '#f4a261', '#2a9d8f', '#9b5de5', '#e9a23b', '#ff6fa5', '#3d9b4a'];
   const coatOf = a => COATS[((a.num || 0) * 3) % COATS.length];
@@ -3228,6 +3650,40 @@
     g.beginPath(); g.moveTo(9.5, -19); g.lineTo(10.5, -25); g.lineTo(13, -19.5); g.closePath(); g.fill(); g.stroke();   // 耳朵
     g.fillStyle = '#d9372b'; g.beginPath(); g.arc(14.2, -17.2, 1, 0, Math.PI * 2); g.fill();          // 紅眼睛
     g.fillStyle = '#1b1b22'; g.beginPath(); g.arc(20.6, -15, 0.9, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  // 被燒焦：身上一閃一閃的火星、往上冒的黑煙
+  function drawCharred(a) {
+    g.save(); g.shadowBlur = 0;
+    const s = a.s, [hx, hy] = a.j.head;
+    for (let n = 0; n < 7; n++) {
+      const u = (n * 0.37 + T * 0.2) % 1;
+      g.fillStyle = 'rgba(255,' + (90 + (n * 23) % 90) + ',20,' + (0.5 + 0.5 * Math.sin(T * 9 + n * 2)).toFixed(2) + ')';
+      g.beginPath(); g.arc(a.x + Math.sin(n * 2.1) * 6 * s, hy + (8 + u * 40) * s, 1.4 * s, 0, Math.PI * 2); g.fill();
+    }
+    for (let n = 0; n < 3; n++) {
+      const u = (T * 0.9 + n / 3) % 1;
+      g.fillStyle = 'rgba(40,36,36,' + (0.6 * (1 - u)).toFixed(2) + ')';
+      g.beginPath(); g.arc(hx + Math.sin(u * 6 + n) * 5 * s, hy - 10 * s - u * 30 * s, (3 + u * 6) * s, 0, Math.PI * 2); g.fill();
+    }
+    g.restore();
+  }
+  // 一堆灰：慢慢堆起來、冒煙、偶爾有火星；上面標座號，大家知道是誰
+  function drawAshPile(a) {
+    const k = BASE / 1.5, u = clamp((a.act.t - 1.5) / 0.6, 0, 1), x = a.x, y = a.y;
+    g.save();
+    g.fillStyle = '#4a4440'; g.beginPath(); g.ellipse(x, y, 16 * k * u, 8 * k * u, 0, Math.PI, 0); g.fill();
+    g.fillStyle = '#6b6560'; g.beginPath(); g.ellipse(x - 3 * k, y - 2 * k * u, 9 * k * u, 5 * k * u, 0, Math.PI, 0); g.fill();
+    for (let n = 0; n < 4; n++) {
+      g.fillStyle = 'rgba(255,120,30,' + Math.max(0, Math.sin(T * 6 + n * 1.7)).toFixed(2) + ')';
+      g.fillRect(x + (n - 1.5) * 6 * k, y - (2 + (n % 2) * 3) * k * u, 2, 2);
+    }
+    for (let n = 0; n < 2; n++) {
+      const v = (T * 0.6 + n / 2) % 1;
+      g.fillStyle = 'rgba(120,115,110,' + (0.45 * (1 - v)).toFixed(2) + ')';
+      g.beginPath(); g.arc(x + Math.sin(v * 5 + n) * 6, y - 10 * k - v * 34, 4 + v * 7, 0, Math.PI * 2); g.fill();
+    }
+    if (u >= 1) { g.font = '900 11px ' + FONT; g.textAlign = 'center'; g.fillStyle = '#d8d2cc'; g.fillText(String(a.num).padStart(2, '0'), x, y - 12 * k); g.textAlign = 'left'; }
     g.restore();
   }
   // 被龍火燙到：頭上冒火、冒煙
@@ -3334,6 +3790,20 @@
       g.strokeStyle = '#f6c344'; g.lineWidth = 1.2 * s; g.beginPath(); g.arc(hx, hy, 10 * s, an - 1, an + 1); g.stroke();
       g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 0.6 * s;
       for (let k = -2; k <= 2; k++) { const b = an + k * 0.45; g.beginPath(); g.moveTo(hx, hy); g.lineTo(hx + Math.cos(b) * 10 * s, hy + Math.sin(b) * 10 * s); g.stroke(); }
+    } else if (w.kind === 'feather') {
+      const an = Math.atan2(dy, dx), tx = hx + dx * 6 * s, ty = hy + dy * 6 * s;
+      g.strokeStyle = '#7a4a24'; g.lineWidth = 1.8 * s; g.beginPath(); g.moveTo(hx - dx * 2 * s, hy - dy * 2 * s); g.lineTo(tx, ty); g.stroke();
+      g.fillStyle = '#fbfaf5'; g.strokeStyle = '#b9b2a2'; g.lineWidth = 0.7 * s;
+      g.beginPath(); g.moveTo(tx, ty); g.quadraticCurveTo(tx + Math.cos(an - 0.7) * 14 * s, ty + Math.sin(an - 0.7) * 14 * s, tx + Math.cos(an) * 17 * s, ty + Math.sin(an) * 17 * s);
+      g.quadraticCurveTo(tx + Math.cos(an + 0.7) * 14 * s, ty + Math.sin(an + 0.7) * 14 * s, tx, ty); g.closePath(); g.fill(); g.stroke();
+      g.beginPath(); for (let k = -2; k <= 2; k++) { const b = an + k * 0.22; g.moveTo(tx, ty); g.lineTo(tx + Math.cos(b) * 14 * s, ty + Math.sin(b) * 14 * s); } g.stroke();
+    } else if (w.kind === 'guandao') {
+      const bx = hx - dx * 18 * s, by = hy - dy * 18 * s, tx = hx + dx * 30 * s, ty = hy + dy * 30 * s, nx = -dy * f, ny = dx * f;
+      g.strokeStyle = '#6b3f1f'; g.lineWidth = 2 * s; g.beginPath(); g.moveTo(bx, by); g.lineTo(tx, ty); g.stroke();
+      g.fillStyle = '#d6dde6'; g.strokeStyle = '#2e8b57'; g.lineWidth = 0.9 * s;
+      g.beginPath(); g.moveTo(tx, ty); g.quadraticCurveTo(tx + dx * 8 * s + nx * 8 * s, ty + dy * 8 * s + ny * 8 * s, tx + dx * 18 * s + nx * 2 * s, ty + dy * 18 * s + ny * 2 * s);
+      g.quadraticCurveTo(tx + dx * 8 * s + nx * 2 * s, ty + dy * 8 * s + ny * 2 * s, tx - dx * 2 * s, ty - dy * 2 * s); g.closePath(); g.fill(); g.stroke();
+      g.fillStyle = '#c0392b'; g.beginPath(); g.arc(tx - dx * 2 * s, ty - dy * 2 * s, 1.8 * s, 0, Math.PI * 2); g.fill();   // 紅纓
     } else if (w.kind === 'longsword') {
       const nx = -dy * f, ny = dx * f;                                    // 垂直方向（護手）
       g.strokeStyle = '#5a3a22'; g.lineWidth = 2.2 * s; g.beginPath(); g.moveTo(hx - dx * 5 * s, hy - dy * 5 * s); g.lineTo(hx + dx * 1.5 * s, hy + dy * 1.5 * s); g.stroke();
@@ -3550,6 +4020,7 @@
     playground: { name: '骷髏', pit: '☠️ 骷髏區', glow: [70, 210, 46], ground: '#1f6b14', drip: SLIME },
     ninja: { name: '鬼', pit: '👹 鬼門', glow: [230, 70, 40], ground: '#5a1a14', drip: '#ff7a3d' },
     ocean: { name: '海盜骷髏', pit: '🏴‍☠️ 沉船', glow: [40, 200, 190], ground: '#0d4a52', drip: '#7ff3e6' },
+    sanguo: { name: '曹營骷髏兵', pit: '🚢 曹營', glow: [255, 130, 50], ground: '#4a1c10', drip: '#ff9a4d', label: '#ffd9a8' },
     icefire: { name: '冰原殭屍', pit: '🧟 殭屍墓', glow: [110, 200, 255], ground: '#1d3550', drip: '#bfe6ff', label: '#bfe6ff' },
     snow: { name: '冰骷髏', pit: '❄️ 冰窟', glow: [140, 200, 255], ground: '#2d5a8a', drip: '#d6f0ff', label: '#1f5f9e' },
   };
@@ -3671,6 +4142,11 @@
         g.beginPath(); g.moveTo(i * 2.6 * s - 2.2 * s, -4.5 * s); g.quadraticCurveTo(i * 2.6 * s - 1 * s, -4.5 * s - h * 0.6, i * 2.6 * s, -4.5 * s - h); g.quadraticCurveTo(i * 2.6 * s + 1 * s, -4.5 * s - h * 0.6, i * 2.6 * s + 2.2 * s, -4.5 * s); g.closePath(); g.fill();
       }
     }
+    if (S.scene === 'sanguo') {
+      const k2 = tier === 'boss' ? 1.35 : 1;
+      g.fillStyle = '#5d6370'; g.beginPath(); g.arc(0, -2.5 * s, 8 * s * k2, Math.PI, 0); g.fill();
+      g.strokeStyle = '#c0392b'; g.lineWidth = 2.2 * s; g.beginPath(); g.moveTo(0, -10 * s * k2); g.quadraticCurveTo(-5 * s, -16 * s * k2, -10 * s, -11 * s * k2 + Math.sin(T * 7) * s); g.stroke();
+    }
     if (isIce()) {
       // 冰做的王冠
       g.fillStyle = '#e6f7ff'; g.strokeStyle = '#7fb8e6'; g.lineWidth = 1 * s;
@@ -3727,6 +4203,7 @@
     else if (isIce()) iceGear(a, j, s);
     else if (isFire()) fireGear(a, j, s);
     else if (isZombie()) zombieGear(a, j, s);
+    else if (S.scene === 'sanguo') { g.save(); g.shadowBlur = 0; const [x, y] = j.rH; g.strokeStyle = '#6b3f1f'; g.lineWidth = 2 * s; g.beginPath(); g.moveTo(x, y + 12 * s); g.lineTo(x, y - 34 * s); g.stroke(); g.fillStyle = '#c9d1dc'; g.beginPath(); g.moveTo(x - 2 * s, y - 34 * s); g.lineTo(x, y - 44 * s); g.lineTo(x + 2 * s, y - 34 * s); g.closePath(); g.fill(); g.beginPath(); g.moveTo(x, y - 30 * s); g.quadraticCurveTo(x + a.f * 9 * s, y - 33 * s, x + a.f * 8 * s, y - 24 * s); g.lineTo(x, y - 26 * s); g.closePath(); g.fill(); g.restore(); }
     skullHead(j.head[0], j.head[1], s, a.tier, a.f * 0.08 * Math.sin(T * 3));
     g.shadowBlur = 0;
   }
@@ -3848,6 +4325,7 @@
       else if (p.kind === 'plane') { g.font = '18px ' + FONT; g.fillText('✈️', p.x - 9, p.y); }
       else if (p.kind === 'snow') { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(p.x, p.y, 2.5, 0, Math.PI * 2); g.fill(); }
       else if (p.kind === 'crumb') { g.fillStyle = '#d4a056'; g.fillRect(p.x, p.y, 3, 3); }
+      else if (p.kind === 'ash') { g.globalAlpha = Math.min(1, a * 1.5); g.fillStyle = p.c; g.fillRect(p.x, p.y, 2.6, 2.6); g.globalAlpha = 1; }
       else if (p.kind === 'z') { g.fillStyle = '#c9c9d6'; g.font = '900 14px ' + FONT; g.fillText('Z', p.x, p.y); }
       else if (p.kind === 'sweat') { g.fillStyle = '#4cc9f0'; g.beginPath(); g.arc(p.x, p.y, 3, 0, Math.PI * 2); g.fill(); }
       else if (p.kind === 'spark') { g.strokeStyle = '#f6c344'; g.lineWidth = 3; const r = (1 - a) * 30 + 6; for (let k = 0; k < 8; k++) { const an = k * Math.PI / 4; g.beginPath(); g.moveTo(p.x + Math.cos(an) * r * 0.5, p.y + Math.sin(an) * r * 0.5); g.lineTo(p.x + Math.cos(an) * r, p.y + Math.sin(an) * r); g.stroke(); } }
@@ -3868,6 +4346,7 @@
       if (p.kind === 'cellfly') continue;
       if (p.kind === 'fw') { p.vy += 220 * dt; p.vx *= 0.97; p.vy *= 0.97; }
       if (p.kind === 'bone' || p.kind === 'block' || p.kind === 'drop' || p.kind === 'crumb' || p.kind === 'snow') p.vy += GRAV * 0.8 * dt;
+      if (p.kind === 'ash') { p.vy += GRAV * 0.25 * dt; if (p.y > FLOOR) { p.y = FLOOR; p.vy = 0; p.vx *= 0.8; } }
       if (p.kind === 'plane') { p.vy = 18 + Math.sin(p.life * 4) * 30; }
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.vr) p.rot += p.vr * dt;
@@ -3944,7 +4423,7 @@
     nextHunt();
     if (done.length) celebrate(done);
   }
-  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }), pos: () => kids().map(k => ({ n: k.num, x: Math.round(k.x), y: Math.round(k.y), F: Math.round(FLOOR), vy: Math.round(k.vy), surf: k.surf, air: k.air, act: k.act.type })) };
+  window.NiceBattle = { sync, dragon: () => startDragon(), scene: (id, quiet) => setScene(id, quiet), scenes: () => SCENES.map(x => ({ id: x.id, label: x.label.replace(/ /g, '') })), activity: id => !!startActivity(id), patrol: () => skullPatrol(), raid: () => startRaid(), debug: () => ({ scene: S.scene, groups: groups.map(G => G.kind + ':' + G.phase), hunts: S.hunts.length, kids: kids().length, free: kids().filter(freeKid).length, floor: kids().filter(k => k.surf === 'floor').length }), pos: () => kids().map(k => ({ n: k.num, x: Math.round(k.x), y: Math.round(k.y), F: Math.round(FLOOR), vy: Math.round(k.vy), surf: k.surf, air: k.air, act: k.act.type, t: Math.round((k.act.t || 0) * 10) / 10, hid: !!k.hidden })) };
 
   // 偶爾有人邊走邊滑手機，掉進綠池（大約每 2 分鐘一次）；骷髏偶爾出來亂抓人（抓到沒有缺交的會放回來）
   // 骷髏大約每 15～30 秒走出骷髏區抓一個人；沒有缺交的人被抓進籠子，過一下會自己跑出來
@@ -4010,7 +4489,7 @@
   toggle.onclick = () => { try { localStorage.setItem(OFF_KEY, isOff() ? '0' : '1'); } catch { /* 無痕模式 */ } checkSize(); };
   ground.appendChild(toggle);
   sceneSel = document.createElement('select');
-  sceneSel.id = 'sceneSelect'; sceneSel.className = 'teacher-only'; sceneSel.title = '切換操場場景（全班螢幕一起換）';
+  sceneSel.id = 'sceneSelect'; sceneSel.className = 'teacher-only'; sceneSel.title = '切換布景主題（全班螢幕一起換）';
   for (const sc of SCENES) { const o = document.createElement('option'); o.value = sc.id; o.textContent = '🎨 ' + sc.label.replace(/ /g, ''); sceneSel.appendChild(o); }
   sceneSel.value = S.scene;
   sceneSel.onchange = () => {

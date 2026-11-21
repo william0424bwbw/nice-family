@@ -222,6 +222,17 @@
 
         /* 冰與火：左邊（國語）的卡片結冰、下面掛冰柱；右邊（數學）的卡片在燒、上面冒火焰 */
         html[data-scene] .bg-icefire { background-image: url(/scenes/icefire.svg); }
+        html[data-scene] .bg-sanguo { background-image: url(/scenes/sanguo.svg); }
+        html[data-scene="sanguo"] .bg-sanguo { opacity: 1; }
+        /* 三國：卡片是掛起來的軍令卷軸（上下兩根木軸、金色邊），號碼格是令牌（顏色照原本：橘＝未交、紅＝逾期、紫＝補考） */
+        html[data-scene="sanguo"] .homework-card { background: linear-gradient(rgba(74,24,16,0.9), rgba(40,14,12,0.93)); border: 2px solid #c9a24a; border-radius: 3px; box-shadow: inset 0 0 0 3px rgba(0,0,0,0.35), 0 6px 14px rgba(0,0,0,0.45); }
+        html[data-scene="sanguo"] .homework-card::before, html[data-scene="sanguo"] .homework-card::after { content: ''; position: absolute; left: -10px; right: -10px; height: 11px; border-radius: 6px; pointer-events: none;
+            background: radial-gradient(circle at 5px 50%, #f6c344 0 4px, transparent 4.5px), radial-gradient(circle at calc(100% - 5px) 50%, #f6c344 0 4px, transparent 4.5px), linear-gradient(#8a5a2b, #4a2a12); }
+        html[data-scene="sanguo"] .homework-card::before { top: -9px; }
+        html[data-scene="sanguo"] .homework-card::after { bottom: -9px; }
+        html[data-scene="sanguo"] .card-header { border-bottom-color: rgba(201, 162, 74, 0.55); }
+        html[data-scene="sanguo"] .student-node, html[data-scene="sanguo"] .student-node.status-3 { aspect-ratio: 0.86; border-radius: 46% 46% 10% 10% / 32% 32% 8% 8% !important;
+            box-shadow: inset 0 0 0 2px rgba(246, 195, 68, 0.9), inset 0 0 0 4px rgba(0, 0, 0, 0.22), 0 2px 0 rgba(0, 0, 0, 0.3); }
         html[data-scene="icefire"] .bg-icefire { opacity: 1; }
         html[data-scene="icefire"] .track-column:first-child .homework-card { background: linear-gradient(160deg, rgba(220,245,255,0.16), transparent 40%), linear-gradient(#24405e, #172a44); border: 2px solid #9fd8ff; box-shadow: inset 0 0 14px rgba(180,230,255,0.25), 0 6px 15px rgba(0,0,0,0.35); }
         html[data-scene="icefire"] .track-column:first-child .homework-card::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -9px; height: 9px; pointer-events: none; background: #cfeeff; clip-path: polygon(0 0, 4.17% 100%, 8.33% 0, 12.50% 100%, 16.67% 0, 20.83% 100%, 25.00% 0, 29.17% 100%, 33.33% 0, 37.50% 100%, 41.67% 0, 45.83% 100%, 50.00% 0, 54.17% 100%, 58.33% 0, 62.50% 100%, 66.67% 0, 70.83% 100%, 75.00% 0, 79.17% 100%, 83.33% 0, 87.50% 100%, 91.67% 0, 95.83% 100%, 100.00% 0); }
@@ -338,7 +349,7 @@
     </style>
 </head>
 <body>
-    <div id="sceneBg" aria-hidden="true"><div class="bg-layer bg-ninja"></div><div class="bg-layer bg-ocean"></div><div class="bg-layer bg-snow"></div><div class="bg-layer bg-icefire"></div></div>
+    <div id="sceneBg" aria-hidden="true"><div class="bg-layer bg-ninja"></div><div class="bg-layer bg-ocean"></div><div class="bg-layer bg-snow"></div><div class="bg-layer bg-icefire"></div><div class="bg-layer bg-sanguo"></div></div>
 
     <div class="title-area">
         <h1>📋 NICE家族即時親師數位看板</h1>
@@ -1741,14 +1752,14 @@
             battleSceneSeen = true;
         }
         let sceneSaving = 0, battleSceneSeen = false;
-        // 老師在操場選單換場景：存到雲端
+        // 老師在操場選單換布景主題：存到雲端
         window.saveBattleScene = async (scene) => {
             sceneSaving++;
             try {
                 await api('PUT', '/api/scene', { scene });
                 if (board) board.scene = scene;
                 const label = (window.NiceBattle.scenes().find(x => x.id === scene) || {}).label || scene;
-                toast('已切換成「' + label + '」，全班螢幕會一起換', true);
+                toast('已切換成「' + label + '」布景主題，全班螢幕會一起換', true);
             } catch (e) {
                 toast(e.message || '切換失敗，請再試一次');
                 throw e;
